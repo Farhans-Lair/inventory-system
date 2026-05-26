@@ -1,4 +1,4 @@
-    package com.inventory.auth.config;
+package com.inventory.auth.config;
 
 import com.inventory.auth.infrastructure.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
