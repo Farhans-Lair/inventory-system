@@ -2,10 +2,12 @@ package com.inventory.stock.domain.repository;
 
 import com.inventory.stock.domain.model.StockReservation;
 import com.inventory.stock.domain.model.StockReservation.ReservationStatus;
+import org.springframework.data.repository.NoRepositoryBean;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
+@NoRepositoryBean
 public interface StockReservationRepository extends JpaRepository<StockReservation, String> {
     List<StockReservation> findByProductIdAndStatus(String productId, ReservationStatus status);
     List<StockReservation> findByStatus(ReservationStatus status);

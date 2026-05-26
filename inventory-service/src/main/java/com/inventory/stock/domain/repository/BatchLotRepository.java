@@ -1,11 +1,13 @@
 package com.inventory.stock.domain.repository;
 
 import com.inventory.stock.domain.model.BatchLot;
+import org.springframework.data.repository.NoRepositoryBean;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.time.LocalDate;
 import java.util.List;
 
+@NoRepositoryBean
 public interface BatchLotRepository extends JpaRepository<BatchLot, String> {
     List<BatchLot> findByProductId(String productId);
     List<BatchLot> findByLocationId(String locationId);
