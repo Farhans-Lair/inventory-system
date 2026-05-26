@@ -4,20 +4,33 @@ networks:
   inventory-net:
     driver: bridge
 
-# ── Databases ──────────────────────────────────────────────────────────────
+volumes:
+  auth-db-data:
+  inventory-db-data:
+  notification-db-data:
+  supplier-db-data:
+
 services:
+
+  # ── Databases ──────────────────────────────────────────────────────────────
+
   auth-db:
     image: mysql:8.0
     container_name: auth-db
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: authdb
-    ports: ["3307:3306"]
-    networks: [inventory-net]
-    volumes: [auth-db-data:/var/lib/mysql]
+    ports:
+      - "3307:3306"
+    networks:
+      - inventory-net
+    volumes:
+      - auth-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 10s; timeout: 5s; retries: 10
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   inventory-db:
     image: mysql:8.0
@@ -25,12 +38,17 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: inventorydb
-    ports: ["3308:3306"]
-    networks: [inventory-net]
-    volumes: [inventory-db-data:/var/lib/mysql]
+    ports:
+      - "3308:3306"
+    networks:
+      - inventory-net
+    volumes:
+      - inventory-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 10s; timeout: 5s; retries: 10
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   notification-db:
     image: mysql:8.0
@@ -38,12 +56,17 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: notificationdb
-    ports: ["3309:3306"]
-    networks: [inventory-net]
-    volumes: [notification-db-data:/var/lib/mysql]
+    ports:
+      - "3309:3306"
+    networks:
+      - inventory-net
+    volumes:
+      - notification-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 10s; timeout: 5s; retries: 10
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   supplier-db:
     image: mysql:8.0
@@ -51,18 +74,25 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: supplierdb
-    ports: ["3310:3306"]
-    networks: [inventory-net]
-    volumes: [supplier-db-data:/var/lib/mysql]
+    ports:
+      - "3310:3306"
+    networks:
+      - inventory-net
+    volumes:
+      - supplier-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 10s; timeout: 5s; retries: 10
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-# ── Application services ───────────────────────────────────────────────────
+  # ── Application services ───────────────────────────────────────────────────
+
   auth-service:
     build: ./auth-service
     container_name: auth-service
-    ports: ["8081:8081"]
+    ports:
+      - "8081:8081"
     environment:
       DB_USER: root
       DB_PASS: root
@@ -71,80 +101,92 @@ services:
       MAIL_PORT: 587
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-    networks: [inventory-net]
+    networks:
+      - inventory-net
     depends_on:
-      auth-db: { condition: service_healthy }
+      auth-db:
+        condition: service_healthy
     restart: on-failure
 
   inventory-service:
     build: ./inventory-service
     container_name: inventory-service
-    ports: ["8082:8082"]
+    ports:
+      - "8082:8082"
     environment:
       DB_USER: root
       DB_PASS: root
       JWT_SECRET: aW52ZW50b3J5TWFuYWdlbWVudFN5c3RlbVNlY3JldEtleUZvckhTMjU2QWxnb3JpdGhtMjAyNA==
-    networks: [inventory-net]
+    networks:
+      - inventory-net
     depends_on:
-      inventory-db: { condition: service_healthy }
+      inventory-db:
+        condition: service_healthy
     restart: on-failure
 
   notification-service:
     build: ./notification-service
     container_name: notification-service
-    ports: ["8083:8083"]
+    ports:
+      - "8083:8083"
     environment:
       DB_USER: root
       DB_PASS: root
+      JWT_SECRET: aW52ZW50b3J5TWFuYWdlbWVudFN5c3RlbVNlY3JldEtleUZvckhTMjU2QWxnb3JpdGhtMjAyNA==
       MAIL_HOST: smtp.gmail.com
       MAIL_PORT: 587
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       ALERT_RECIPIENTS: ${ALERT_RECIPIENTS:-}
-    networks: [inventory-net]
+    networks:
+      - inventory-net
     depends_on:
-      notification-db: { condition: service_healthy }
+      notification-db:
+        condition: service_healthy
     restart: on-failure
 
   reporting-service:
     build: ./reporting-service
     container_name: reporting-service
-    ports: ["8084:8084"]
+    ports:
+      - "8084:8084"
     environment:
       DB_USER: root
       DB_PASS: root
-    networks: [inventory-net]
+      JWT_SECRET: aW52ZW50b3J5TWFuYWdlbWVudFN5c3RlbVNlY3JldEtleUZvckhTMjU2QWxnb3JpdGhtMjAyNA==
+    networks:
+      - inventory-net
     depends_on:
-      inventory-db: { condition: service_healthy }
+      inventory-db:
+        condition: service_healthy
     restart: on-failure
 
   supplier-service:
     build: ./supplier-service
     container_name: supplier-service
-    ports: ["8085:8085"]
+    ports:
+      - "8085:8085"
     environment:
       DB_USER: root
       DB_PASS: root
       JWT_SECRET: aW52ZW50b3J5TWFuYWdlbWVudFN5c3RlbVNlY3JldEtleUZvckhTMjU2QWxnb3JpdGhtMjAyNA==
-    networks: [inventory-net]
+    networks:
+      - inventory-net
     depends_on:
-      supplier-db: { condition: service_healthy }
+      supplier-db:
+        condition: service_healthy
     restart: on-failure
 
   frontend:
     build: ./frontend
     container_name: frontend
-    ports: ["3000:80"]
-    networks: [inventory-net]
+    ports:
+      - "3000:80"
+    networks:
+      - inventory-net
     depends_on:
       - auth-service
       - inventory-service
       - notification-service
       - reporting-service
       - supplier-service
-
-volumes:
-  auth-db-data:
-  inventory-db-data:
-  notification-db-data:
-  supplier-db-data:
