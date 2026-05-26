@@ -32,12 +32,15 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // All authenticated users can read
-                .requestMatchers(HttpMethod.GET, "/api/products/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/locations/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/stock/**").authenticated()
-                // All other requests require authentication (fine-grained by @PreAuthorize)
-                .anyRequest().authenticated()
+                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                // STAKEHOLDER can read everything — same as ADMIN and WAREHOUSE_MANAGER
+                .requestMatchers(HttpMethod.GET, "/api/products/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/locations/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/stock/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/batch-lots/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/cycle-counts/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                // All write operations require at least WAREHOUSE_MANAGER (fine-grained by @PreAuthorize)
+                .anyRequest().hasAnyRole("ADMIN","WAREHOUSE_MANAGER")
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

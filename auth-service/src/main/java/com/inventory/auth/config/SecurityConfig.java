@@ -1,4 +1,4 @@
-package com.inventory.auth.config;
+    package com.inventory.auth.config;
 
 import com.inventory.auth.infrastructure.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,12 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/verify-login",
                     "/api/auth/signup",
-                    "/api/auth/verify-signup"
+                    "/api/auth/verify-signup",
+                    "/api/auth/forgot-password",
+                    "/api/auth/reset-password",
+                    "/api/auth/refresh",
+                    "/actuator/health",
+                    "/actuator/info"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

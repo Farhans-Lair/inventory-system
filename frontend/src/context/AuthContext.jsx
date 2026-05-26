@@ -20,8 +20,14 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  const isAdmin       = user?.role === 'ADMIN'
+  const isManager     = user?.role === 'WAREHOUSE_MANAGER'
+  const isStakeholder = user?.role === 'STAKEHOLDER'
+  // Stakeholders can view but not write
+  const canWrite      = isAdmin || isManager
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, isAdmin, isManager, isStakeholder, canWrite }}>
       {children}
     </AuthContext.Provider>
   )
