@@ -1,6 +1,7 @@
 package com.inventory.stock.interfaces.rest;
 
 import com.inventory.stock.application.StockService;
+import com.inventory.stock.application.UomService;
 import com.inventory.stock.application.dto.*;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,6 +18,7 @@ import java.util.Map;
 public class StockController {
 
     private final StockService stockService;
+    private final UomService   uomService;
 
     @GetMapping("/summary")
     public ResponseEntity<StockSummaryDto> summary() {
@@ -38,6 +40,7 @@ public class StockController {
         return ResponseEntity.ok(stockService.getOutOfStock());
     }
 
+    // ── B2: Overstock alerts endpoint ─────────────────────────────────────
     @GetMapping("/levels/overstock")
     public ResponseEntity<List<StockLevelDto>> overstock() {
         return ResponseEntity.ok(stockService.getOverstock());
@@ -50,6 +53,7 @@ public class StockController {
                 (int) body.get("minQuantity"), (int) body.get("maxQuantity")));
     }
 
+    // ── B5: Movement with reason codes ────────────────────────────────────
     @PostMapping("/movement")
     public ResponseEntity<StockMovementResponse> movement(
             @RequestBody @Valid StockMovementRequest req, HttpServletRequest http) {
@@ -68,7 +72,7 @@ public class StockController {
         return ResponseEntity.ok(stockService.getMovementsByProduct(productId));
     }
 
-    // ── Reservations ──────────────────────────────────────────────────────
+    // ── B1: Reservations ─────────────────────────────────────────────────
     @PostMapping("/reservations")
     public ResponseEntity<StockReservationDto> reserve(@RequestBody StockReservationDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(stockService.createReservation(dto));
@@ -79,14 +83,53 @@ public class StockController {
         return ResponseEntity.ok(stockService.releaseReservation(id));
     }
 
+    @PatchMapping("/reservations/{id}/fulfill")
+    public ResponseEntity<StockReservationDto> fulfill(@PathVariable String id) {
+        return ResponseEntity.ok(stockService.fulfillReservation(id));
+    }
+
     @GetMapping("/reservations")
     public ResponseEntity<List<StockReservationDto>> reservations() {
         return ResponseEntity.ok(stockService.getActiveReservations());
     }
 
-    // ── Demand forecast ───────────────────────────────────────────────────
+    @GetMapping("/reservations/product/{productId}")
+    public ResponseEntity<List<StockReservationDto>> reservationsByProduct(@PathVariable String productId) {
+        return ResponseEntity.ok(stockService.getReservationsByProduct(productId));
+    }
+
+    // ── B6: Demand forecast ───────────────────────────────────────────────
     @GetMapping("/forecast/{productId}")
     public ResponseEntity<Map<String, Object>> forecast(@PathVariable String productId) {
         return ResponseEntity.ok(stockService.getDemandForecast(productId));
+    }
+
+    // ── B4: UoM conversions ───────────────────────────────────────────────
+    @GetMapping("/uom")
+    public ResponseEntity<List<UomConversionDto>> allConversions() {
+        return ResponseEntity.ok(uomService.getAll());
+    }
+
+    @PostMapping("/uom")
+    public ResponseEntity<UomConversionDto> createConversion(@RequestBody UomConversionDto dto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(uomService.create(dto));
+    }
+
+    @PutMapping("/uom/{id}")
+    public ResponseEntity<UomConversionDto> updateConversion(@PathVariable String id, @RequestBody UomConversionDto dto) {
+        return ResponseEntity.ok(uomService.update(id, dto));
+    }
+
+    @DeleteMapping("/uom/{id}")
+    public ResponseEntity<Void> deleteConversion(@PathVariable String id) {
+        uomService.delete(id); return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/uom/convert")
+    public ResponseEntity<UomConversionDto> convert(
+            @RequestParam String from,
+            @RequestParam String to,
+            @RequestParam double qty) {
+        return ResponseEntity.ok(uomService.convert(from, to, qty));
     }
 }

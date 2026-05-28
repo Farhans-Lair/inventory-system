@@ -9,6 +9,7 @@ volumes:
   inventory-db-data:
   notification-db-data:
   supplier-db-data:
+  minio-data:
 
 services:
 
@@ -117,6 +118,10 @@ services:
       DB_USER: root
       DB_PASS: root
       JWT_SECRET: aW52ZW50b3J5TWFuYWdlbWVudFN5c3RlbVNlY3JldEtleUZvckhTMjU2QWxnb3JpdGhtMjAyNA==
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: inventory-images
     networks:
       - inventory-net
     depends_on:
@@ -176,6 +181,27 @@ services:
       supplier-db:
         condition: service_healthy
     restart: on-failure
+
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - inventory-net
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build: ./frontend

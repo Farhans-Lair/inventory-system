@@ -18,6 +18,7 @@ const navGroups = [
       { path: '/movements',   label: 'Movements',    icon: '⇄' },
       { path: '/batch-lots',  label: 'Batch / Lots', icon: '⏱' },
       { path: '/cycle-counts',label: 'Cycle Counts', icon: '↺' },
+      { path: '/uom',         label: 'UoM Rules',    icon: '⇔' },
     ]
   },
   {
