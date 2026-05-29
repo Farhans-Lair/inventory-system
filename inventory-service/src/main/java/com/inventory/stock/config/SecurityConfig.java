@@ -4,7 +4,6 @@ import com.inventory.stock.infrastructure.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -19,7 +18,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
+@EnableMethodSecurity          // keeps @PreAuthorize working on controllers
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -32,15 +31,9 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Health checks are public — everything else just needs a valid JWT
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                // STAKEHOLDER can read everything — same as ADMIN and WAREHOUSE_MANAGER
-                .requestMatchers(HttpMethod.GET, "/api/products/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/locations/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/stock/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/batch-lots/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/cycle-counts/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                // All write operations require at least WAREHOUSE_MANAGER (fine-grained by @PreAuthorize)
-                .anyRequest().hasAnyRole("ADMIN","WAREHOUSE_MANAGER")
+                .anyRequest().authenticated()   // role checks done by @PreAuthorize on each endpoint
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
