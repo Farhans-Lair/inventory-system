@@ -1,11 +1,13 @@
 package com.inventory.stock.domain.repository;
 
 import com.inventory.stock.domain.model.StockLevel;
+import org.springframework.data.repository.NoRepositoryBean;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 
+@NoRepositoryBean
 public interface StockLevelRepository extends JpaRepository<StockLevel, String> {
     List<StockLevel> findByProductId(String productId);
     List<StockLevel> findByLocationId(String locationId);
