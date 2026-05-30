@@ -29,23 +29,19 @@ public class AuthService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    // ── Signup ────────────────────────────────────────────────────────────
     @Transactional
     public OtpRequestResponse initiateSignup(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail()))
             throw new RuntimeException("An account with this email already exists.");
-
         otpTokenRepository.deleteByEmail(request.getEmail());
         userRepository.findByEmail(request.getEmail()).ifPresent(u -> {
             if (!u.isActive()) userRepository.deleteById(u.getId());
         });
-
         User pending = User.builder()
                 .email(request.getEmail()).fullName(request.getFullName())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole()).active(false).build();
         userRepository.save(pending);
-
         return sendOtp(request.getEmail(), OtpPurpose.SIGNUP, "SIGNUP");
     }
 
@@ -61,7 +57,6 @@ public class AuthService {
         return buildTokenPair(user);
     }
 
-    // ── Login ─────────────────────────────────────────────────────────────
     @Transactional
     public OtpRequestResponse initiateLogin(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
@@ -70,7 +65,6 @@ public class AuthService {
             throw new RuntimeException("Account is not verified or has been disabled.");
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash()))
             throw new RuntimeException("Invalid email or password.");
-
         otpTokenRepository.deleteByEmail(request.getEmail());
         return sendOtp(request.getEmail(), OtpPurpose.LOGIN, "LOGIN");
     }
@@ -85,7 +79,6 @@ public class AuthService {
         return buildTokenPair(user);
     }
 
-    // ── Forgot / Reset password ────────────────────────────────────────────
     @Transactional
     public OtpRequestResponse forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail())
@@ -106,13 +99,13 @@ public class AuthService {
         refreshTokenRepository.deleteByUserId(user.getId());
     }
 
-    // ── Refresh token ─────────────────────────────────────────────────────
+    /** Accepts raw refresh-token string read from HttpOnly cookie. */
     @Transactional
-    public TokenPairResponse refreshAccessToken(RefreshTokenRequest request) {
-        RefreshToken rt = refreshTokenRepository.findByToken(request.getRefreshToken())
+    public TokenPairResponse refreshAccessToken(String rawRefreshToken) {
+        RefreshToken rt = refreshTokenRepository.findByToken(rawRefreshToken)
                 .orElseThrow(() -> new RuntimeException("Invalid refresh token."));
-        if (rt.isRevoked())  throw new RuntimeException("Refresh token revoked.");
-        if (rt.isExpired())  throw new RuntimeException("Refresh token expired.");
+        if (rt.isRevoked()) throw new RuntimeException("Refresh token revoked.");
+        if (rt.isExpired()) throw new RuntimeException("Refresh token expired.");
         User user = userRepository.findById(rt.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found."));
         if (!user.isActive()) throw new RuntimeException("Account is disabled.");
@@ -121,13 +114,11 @@ public class AuthService {
         return buildTokenPair(user);
     }
 
-    // ── Logout ────────────────────────────────────────────────────────────
     @Transactional
     public void logout(String userId) {
         refreshTokenRepository.deleteByUserId(userId);
     }
 
-    // ── Admin user management ─────────────────────────────────────────────
     public UserResponse createUser(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail()))
             throw new RuntimeException("Email already in use.");
@@ -149,7 +140,6 @@ public class AuthService {
         userRepository.save(user);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
     private OtpRequestResponse sendOtp(String email, OtpPurpose purpose, String purposeLabel) {
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));
         otpTokenRepository.save(OtpToken.builder()
@@ -172,7 +162,7 @@ public class AuthService {
         return token;
     }
 
-    private TokenPairResponse buildTokenPair(User user) {
+    public TokenPairResponse buildTokenPair(User user) {
         String access  = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail(), user.getRole());
         String refresh = UUID.randomUUID().toString();
         refreshTokenRepository.save(RefreshToken.builder()

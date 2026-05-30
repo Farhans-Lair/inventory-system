@@ -1,6 +1,7 @@
 package com.inventory.auth.config;
 
 import com.inventory.auth.infrastructure.security.JwtAuthFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +35,13 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(ex -> ex
+                // Return 401 so the frontend knows to re-authenticate
+                .authenticationEntryPoint((req, res, e) ->
+                    res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
+            )
             .authorizeHttpRequests(auth -> auth
+                // Public endpoints — no JWT required
                 .requestMatchers(
                     "/api/auth/login",
                     "/api/auth/verify-login",
@@ -42,10 +49,12 @@ public class SecurityConfig {
                     "/api/auth/verify-signup",
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password",
-                    "/api/auth/refresh",
+                    "/api/auth/refresh",   // reads refresh_token cookie, no access token needed
+                    "/api/auth/logout",    // must work even with expired access token
                     "/actuator/health",
                     "/actuator/info"
                 ).permitAll()
+                // Everything else requires a valid JWT (read from cookie by JwtAuthFilter)
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -58,7 +67,7 @@ public class SecurityConfig {
         cfg.setAllowedOriginPatterns(List.of("*"));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
-        cfg.setAllowCredentials(true);
+        cfg.setAllowCredentials(true);  // required for cookies to be sent cross-origin
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);
         return source;

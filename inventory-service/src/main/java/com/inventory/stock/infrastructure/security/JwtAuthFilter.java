@@ -3,15 +3,16 @@ package com.inventory.stock.infrastructure.security;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -22,22 +23,41 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
+    protected void doFilterInternal(HttpServletRequest req,
+                                    HttpServletResponse res,
+                                    FilterChain chain)
             throws ServletException, IOException {
 
-        String header = req.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-            if (jwtTokenProvider.isValid(token)) {
-                Claims claims = jwtTokenProvider.validateAndParse(token);
-                String userId = claims.getSubject();
-                String role   = claims.get("role", String.class);
-                var auth = new UsernamePasswordAuthenticationToken(
-                        userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(req));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+        String token = extractToken(req);
+
+        if (token != null && jwtTokenProvider.isValid(token)) {
+            Claims claims = jwtTokenProvider.validateAndParse(token);
+            req.setAttribute("claims", claims);
+
+            String role = claims.get("role", String.class);
+            var auth = new UsernamePasswordAuthenticationToken(
+                    claims.getSubject(), null,
+                    List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+            SecurityContextHolder.getContext().setAuthentication(auth);
+        }
+
+        chain.doFilter(req, res);
+    }
+
+    private String extractToken(HttpServletRequest req) {
+        // 1. HttpOnly cookie (primary — set by auth-service on login)
+        if (req.getCookies() != null) {
+            for (Cookie c : req.getCookies()) {
+                if ("access_token".equals(c.getName())) {
+                    return c.getValue();
+                }
             }
         }
-        chain.doFilter(req, res);
+        // 2. Authorization header fallback (for direct API / dev tool access)
+        String header = req.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
     }
 }

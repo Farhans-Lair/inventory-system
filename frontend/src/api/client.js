@@ -1,30 +1,62 @@
 import axios from 'axios'
 
-const client = axios.create({ baseURL: '/' })
-
-client.interceptors.request.use(cfg => {
-  const token = sessionStorage.getItem('token')
-  if (token) cfg.headers.Authorization = `Bearer ${token}`
-  return cfg
+/**
+ * All requests include credentials: 'include' so the browser automatically
+ * attaches the HttpOnly access_token and refresh_token cookies on every call.
+ * We never read or write token values in JavaScript.
+ */
+const client = axios.create({
+  baseURL: '/',
+  withCredentials: true,   // send cookies on every request
 })
+
+let isRefreshing  = false
+let failedQueue   = []
+
+const processQueue = (error) => {
+  failedQueue.forEach(p => error ? p.reject(error) : p.resolve())
+  failedQueue = []
+}
 
 client.interceptors.response.use(
   r => r,
-  err => {
-    if (err.response?.status === 401) {
-      const rt = sessionStorage.getItem('refreshToken')
-      if (rt && !err.config._retry) {
-        err.config._retry = true
-        return client.post('/api/auth/refresh', { refreshToken: rt }).then(res => {
-          const { accessToken, refreshToken } = res.data
-          sessionStorage.setItem('token', accessToken)
-          sessionStorage.setItem('refreshToken', refreshToken)
-          err.config.headers.Authorization = `Bearer ${accessToken}`
-          return client(err.config)
-        }).catch(() => { sessionStorage.clear(); window.location.href = '/login' })
+  async err => {
+    const status       = err.response?.status
+    const originalReq  = err.config
+    const url          = originalReq?.url || ''
+
+    // Don't retry refresh/login/logout endpoints — that would loop forever
+    const isAuthEndpoint = url.includes('/api/auth/')
+
+    if (status === 401 && !originalReq._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        // Queue this request until the ongoing refresh finishes
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(() => client(originalReq))
+          .catch(e => Promise.reject(e))
       }
-      sessionStorage.clear(); window.location.href = '/login'
+
+      originalReq._retry = true
+      isRefreshing = true
+
+      try {
+        // POST to refresh — the browser sends the refresh_token cookie automatically
+        // The server validates it, issues a new access_token cookie, and returns user info
+        await client.post('/api/auth/refresh')
+        processQueue(null)
+        return client(originalReq)   // retry original request with new cookie
+      } catch (refreshError) {
+        processQueue(refreshError)
+        // Refresh token is invalid/expired — clear local profile and redirect to login
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
+
     return Promise.reject(err)
   }
 )
@@ -37,7 +69,6 @@ export const authApi = {
   verifyLogin:      d  => client.post('/api/auth/verify-login', d),
   forgotPassword:   d  => client.post('/api/auth/forgot-password', d),
   resetPassword:    d  => client.post('/api/auth/reset-password', d),
-  refresh:          d  => client.post('/api/auth/refresh', d),
   logout:           () => client.post('/api/auth/logout'),
   getUsers:         () => client.get('/api/users'),
   createUser:       d  => client.post('/api/users', d),
@@ -46,72 +77,47 @@ export const authApi = {
 
 // ── Inventory ─────────────────────────────────────────────────────────────
 export const inventoryApi = {
-  // Dashboard
   getSummary:              ()          => client.get('/api/stock/summary'),
-
-  // Products
   getProducts:             ()          => client.get('/api/products'),
   getProduct:              id          => client.get(`/api/products/${id}`),
   createProduct:           d           => client.post('/api/products', d),
   updateProduct:           (id, d)     => client.put(`/api/products/${id}`, d),
   deactivateProduct:       id          => client.delete(`/api/products/${id}`),
   activateProduct:         id          => client.patch(`/api/products/${id}/activate`),
-
-  // A1: Image upload
   uploadProductImage:      (id, file)  => {
     const fd = new FormData(); fd.append('file', file)
     return client.post(`/api/products/${id}/image`, fd)
   },
-
-  // A2: Barcode/QR
   getBarcode:              (id, type)  => client.get(`/api/products/${id}/barcode?type=${type || 'CODE128'}`),
   getQrCode:               id          => client.get(`/api/products/${id}/barcode?type=QR`),
-
-  // A3: CSV
   importProductsCsv:       file        => { const fd = new FormData(); fd.append('file', file); return client.post('/api/products/import', fd) },
   exportProductsCsv:       ()          => client.get('/api/products/export', { responseType: 'blob' }),
-
-  // A5: Variants
   getVariants:             id          => client.get(`/api/products/${id}/variants`),
   createVariant:           (id, d)     => client.post(`/api/products/${id}/variants`, d),
   updateVariant:           (id, vid, d)=> client.put(`/api/products/${id}/variants/${vid}`, d),
   toggleVariant:           (id, vid)   => client.patch(`/api/products/${id}/variants/${vid}/toggle`),
-
-  // Locations
   getLocations:            ()          => client.get('/api/locations'),
   createLocation:          d           => client.post('/api/locations', d),
   updateLocation:          (id, d)     => client.put(`/api/locations/${id}`, d),
-
-  // Stock levels
   getAllLevels:             ()          => client.get('/api/stock/levels'),
   getLowStock:             ()          => client.get('/api/stock/levels/low-stock'),
   getOutOfStock:           ()          => client.get('/api/stock/levels/out-of-stock'),
   getOverstock:            ()          => client.get('/api/stock/levels/overstock'),
   updateThresholds:        d           => client.patch('/api/stock/levels/thresholds', d),
-
-  // B5: Movements with reason codes
   recordMovement:          d           => client.post('/api/stock/movement', d),
   getRecentMovements:      ()          => client.get('/api/stock/movement/recent'),
   getMovementsByProduct:   id          => client.get(`/api/stock/movement/product/${id}`),
-
-  // B6: Demand forecast
   getDemandForecast:       id          => client.get(`/api/stock/forecast/${id}`),
-
-  // B1: Reservations
   createReservation:       d           => client.post('/api/stock/reservations', d),
   releaseReservation:      id          => client.patch(`/api/stock/reservations/${id}/release`),
   fulfillReservation:      id          => client.patch(`/api/stock/reservations/${id}/fulfill`),
   getReservations:         ()          => client.get('/api/stock/reservations'),
   getReservationsByProduct:id          => client.get(`/api/stock/reservations/product/${id}`),
-
-  // B4: UoM conversions
   getUomConversions:       ()          => client.get('/api/stock/uom'),
   createUomConversion:     d           => client.post('/api/stock/uom', d),
   updateUomConversion:     (id, d)     => client.put(`/api/stock/uom/${id}`, d),
   deleteUomConversion:     id          => client.delete(`/api/stock/uom/${id}`),
   convertUom:              (from, to, qty) => client.get(`/api/stock/uom/convert?from=${from}&to=${to}&qty=${qty}`),
-
-  // A4/B3: Batch lots & cycle counts
   createBatchLot:          d           => client.post('/api/batch-lots', d),
   getBatchLotsByProduct:   id          => client.get(`/api/batch-lots/product/${id}`),
   getExpiringSoon:         days        => client.get(`/api/batch-lots/expiring-soon?days=${days}`),
@@ -125,10 +131,10 @@ export const inventoryApi = {
 
 // ── Reporting ─────────────────────────────────────────────────────────────
 export const reportingApi = {
-  getValuation:    ()          => client.get('/api/reports/valuation'),
-  exportValuation: ()          => client.get('/api/reports/valuation/export', { responseType: 'blob' }),
-  getMovements:    (from, to)  => client.get('/api/reports/movements', { params: { from, to } }),
-  getTrend:        days        => client.get(`/api/reports/trend?days=${days}`),
+  getValuation:    ()         => client.get('/api/reports/valuation'),
+  exportValuation: ()         => client.get('/api/reports/valuation/export', { responseType: 'blob' }),
+  getMovements:    (from, to) => client.get('/api/reports/movements', { params: { from, to } }),
+  getTrend:        days       => client.get(`/api/reports/trend?days=${days}`),
 }
 
 // ── Supplier ──────────────────────────────────────────────────────────────

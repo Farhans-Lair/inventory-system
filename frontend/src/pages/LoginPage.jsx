@@ -38,7 +38,9 @@ export default function LoginPage() {
     e.preventDefault(); setError(''); setLoading(true)
     try {
       const r = await authApi.verifyLogin({ email, otp })
-      login(r.data); navigate('/')
+      // r.data contains { userId, email, fullName, role } — tokens are in HttpOnly cookies
+      login(r.data)
+      navigate('/')
     } catch(err) { setError(err.response?.data?.message || 'Verification failed') }
     finally { setLoading(false) }
   }
