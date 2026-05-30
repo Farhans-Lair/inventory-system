@@ -11,8 +11,6 @@ volumes:
 
 services:
 
-  # ── Databases ──────────────────────────────────────────────────────────────
-
   auth-db:
     image: mysql:8.0
     container_name: auth-db
@@ -85,8 +83,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── Application services ───────────────────────────────────────────────────
-
   auth-service:
     build: ./auth-service
     container_name: auth-service
@@ -95,6 +91,7 @@ services:
     environment:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      AUTH_DB_NAME: ${AUTH_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECURE: ${COOKIE_SECURE}
       MAIL_HOST: ${MAIL_HOST}
@@ -116,6 +113,7 @@ services:
     environment:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      INVENTORY_DB_NAME: ${INVENTORY_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
@@ -136,6 +134,7 @@ services:
     environment:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      NOTIFICATION_DB_NAME: ${NOTIFICATION_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
       MAIL_HOST: ${MAIL_HOST}
       MAIL_PORT: ${MAIL_PORT}
@@ -157,6 +156,7 @@ services:
     environment:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      INVENTORY_DB_NAME: ${INVENTORY_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
     networks:
       - inventory-net
@@ -173,6 +173,7 @@ services:
     environment:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      SUPPLIER_DB_NAME: ${SUPPLIER_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
     networks:
       - inventory-net
