@@ -1,3 +1,20 @@
-
-# Email credentials — never commit these
+# Environment — contains secrets, never commit
 .env
+
+# Java build output
+*/target/
+*.class
+*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Node
+node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
