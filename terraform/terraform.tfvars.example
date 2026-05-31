@@ -1,0 +1,32 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# terraform.tfvars.example — copy this to terraform.tfvars and fill in values
+# This file is safe to commit to Git — no real secrets here.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── AWS ────────────────────────────────────────────────────────────────────
+aws_region  = "ap-south-1"
+project     = "inventoryms"
+environment = "prod"
+
+# ── Networking ─────────────────────────────────────────────────────────────
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
+
+# ── Database ───────────────────────────────────────────────────────────────
+db_username       = "admin"
+db_password       = ""          # set a strong password — no @ or / characters
+db_instance_class = "db.t3.micro"
+
+# ── Secrets ────────────────────────────────────────────────────────────────
+jwt_secret       = ""           # generate: openssl rand -base64 64
+mail_username    = ""           # Gmail address
+mail_password    = ""           # Gmail App Password (not your login password)
+alert_recipients = ""           # comma-separated emails for stock alerts
+
+# ── Container sizing ───────────────────────────────────────────────────────
+service_cpu    = 512            # 0.5 vCPU per service
+service_memory = 1024           # 1 GB RAM per service
+
+# ── S3 bucket name (must be globally unique across all of AWS) ─────────────
+image_bucket_name = "inventoryms-product-images-prod"

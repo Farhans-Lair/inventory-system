@@ -18,3 +18,9 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+terraform/terraform.tfvars
+terraform/.terraform/
+terraform/tfplan
+terraform/*.tfstate
+terraform/*.tfstate.backup
