@@ -19,6 +19,8 @@ public class ProductController {
 
     private final ProductService productService;
 
+    // ── CRUD ──────────────────────────────────────────────────────────────
+
     @GetMapping
     public ResponseEntity<List<ProductDto>> getAll() {
         return ResponseEntity.ok(productService.getAll());
@@ -30,7 +32,7 @@ public class ProductController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<ProductDto> create(@RequestBody @Valid ProductDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(productService.create(dto));
     }
@@ -42,20 +44,21 @@ public class ProductController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<Void> deactivate(@PathVariable String id) {
         productService.deactivate(id);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<Void> activate(@PathVariable String id) {
         productService.activate(id);
         return ResponseEntity.ok().build();
     }
 
     // ── A1: Image upload ──────────────────────────────────────────────────
+
     @PostMapping("/{id}/image")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<ProductDto> uploadImage(
@@ -65,6 +68,7 @@ public class ProductController {
     }
 
     // ── A2: Barcode / QR generation ───────────────────────────────────────
+
     @GetMapping("/{id}/barcode")
     public ResponseEntity<BarcodeResponse> barcode(
             @PathVariable String id,
@@ -73,8 +77,9 @@ public class ProductController {
     }
 
     // ── A3: CSV import / export ───────────────────────────────────────────
+
     @PostMapping("/import")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<List<ProductDto>> importCsv(@RequestParam("file") MultipartFile file) throws IOException {
         return ResponseEntity.ok(productService.importFromCsv(file));
     }
@@ -89,6 +94,7 @@ public class ProductController {
     }
 
     // ── A5: Variants ──────────────────────────────────────────────────────
+
     @GetMapping("/{id}/variants")
     public ResponseEntity<List<ProductVariantDto>> getVariants(@PathVariable String id) {
         return ResponseEntity.ok(productService.getVariants(id));
@@ -113,7 +119,9 @@ public class ProductController {
 
     @PatchMapping("/{id}/variants/{variantId}/toggle")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
-    public ResponseEntity<Void> toggleVariant(@PathVariable String id, @PathVariable String variantId) {
+    public ResponseEntity<Void> toggleVariant(
+            @PathVariable String id,
+            @PathVariable String variantId) {
         productService.toggleVariant(variantId);
         return ResponseEntity.ok().build();
     }
