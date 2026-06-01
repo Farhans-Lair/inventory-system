@@ -7,7 +7,7 @@
 resource "aws_secretsmanager_secret" "app_secrets" {
   name                    = "${local.prefix}/app-secrets"
   description             = "JWT secret, mail credentials, and DB password"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "app_secrets" {
@@ -29,7 +29,7 @@ resource "aws_secretsmanager_secret_version" "app_secrets" {
 resource "aws_secretsmanager_secret" "db_endpoints" {
   name                    = "${local.prefix}/db-endpoints"
   description             = "RDS endpoint hostnames for each service"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "db_endpoints" {
@@ -56,7 +56,7 @@ resource "aws_secretsmanager_secret_version" "db_endpoints" {
 resource "aws_secretsmanager_secret" "s3_secrets" {
   name                    = "${local.prefix}/s3-secrets"
   description             = "S3 bucket config for product image storage"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "s3_secrets" {
