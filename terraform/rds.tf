@@ -42,7 +42,7 @@ resource "aws_db_instance" "auth" {
   skip_final_snapshot     = false
   final_snapshot_identifier = "${local.prefix}-auth-db-final"
   backup_retention_period = 7
-  deletion_protection     = true
+  deletion_protection     = false
   storage_encrypted       = true
   multi_az                = false   # set true for production HA
   tags                    = { Name = "${local.prefix}-auth-db" }
@@ -65,7 +65,7 @@ resource "aws_db_instance" "inventory" {
   skip_final_snapshot     = false
   final_snapshot_identifier = "${local.prefix}-inventory-db-final"
   backup_retention_period = 7
-  deletion_protection     = true
+  deletion_protection     = false
   storage_encrypted       = true
   multi_az                = false
   tags                    = { Name = "${local.prefix}-inventory-db" }
@@ -88,7 +88,7 @@ resource "aws_db_instance" "notification" {
   skip_final_snapshot     = false
   final_snapshot_identifier = "${local.prefix}-notification-db-final"
   backup_retention_period = 7
-  deletion_protection     = true
+  deletion_protection     = false
   storage_encrypted       = true
   multi_az                = false
   tags                    = { Name = "${local.prefix}-notification-db" }
@@ -111,7 +111,7 @@ resource "aws_db_instance" "supplier" {
   skip_final_snapshot     = false
   final_snapshot_identifier = "${local.prefix}-supplier-db-final"
   backup_retention_period = 7
-  deletion_protection     = true
+  deletion_protection     = false
   storage_encrypted       = true
   multi_az                = false
   tags                    = { Name = "${local.prefix}-supplier-db" }
