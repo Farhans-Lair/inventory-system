@@ -1,87 +1,53 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# vpc.tf — VPC, subnets, routing
+# variables.tf — all configurable values in one place
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── Availability zones ─────────────────────────────────────────────────────
-data "aws_availability_zones" "available" { state = "available" }
-
-# ── VPC ────────────────────────────────────────────────────────────────────
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-  tags = { Name = "${local.prefix}-vpc" }
+variable "aws_region" {
+  description = "AWS region to deploy into"
+  default     = "ap-south-1"
 }
 
-# ── Public subnets (ALB lives here) ───────────────────────────────────────
-resource "aws_subnet" "public" {
-  count                   = length(var.public_subnet_cidrs)
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = true
-  tags = { Name = "${local.prefix}-public-${count.index + 1}" }
+variable "project" {
+  description = "Short project name used as a prefix on every resource"
+  default     = "inventoryms"
 }
 
-# ── Private subnets (ECS tasks + RDS live here) ────────────────────────────
-resource "aws_subnet" "private" {
-  count             = length(var.private_subnet_cidrs)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = data.aws_availability_zones.available.names[count.index]
-  tags = { Name = "${local.prefix}-private-${count.index + 1}" }
+variable "environment" {
+  description = "Deployment environment tag (dev / staging / prod)"
+  default     = "prod"
 }
 
-# ── Internet Gateway (public subnets) ─────────────────────────────────────
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-  tags   = { Name = "${local.prefix}-igw" }
-}
+# ── Networking ─────────────────────────────────────────────────────────────
+variable "vpc_cidr"             { default = "10.0.0.0/16" }
+variable "public_subnet_cidrs"  { default = ["10.0.1.0/24", "10.0.2.0/24"] }
+variable "private_subnet_cidrs" { default = ["10.0.10.0/24", "10.0.11.0/24"] }
 
-# ── Elastic IPs + NAT Gateways (private subnets can reach internet for ECR) ─
-resource "aws_eip" "nat" {
-  count  = length(var.public_subnet_cidrs)
-  domain = "vpc"
-  tags   = { Name = "${local.prefix}-eip-${count.index + 1}" }
+# ── Database ───────────────────────────────────────────────────────────────
+variable "db_username"       { default = "admin" }
+variable "db_password"       {
+  description = "Master DB password — set via TF_VAR_db_password env var"
+  sensitive   = true
 }
+variable "db_instance_class" { default = "db.t3.micro" }
 
-resource "aws_nat_gateway" "main" {
-  count         = length(var.public_subnet_cidrs)
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-  tags          = { Name = "${local.prefix}-nat-${count.index + 1}" }
-  depends_on    = [aws_internet_gateway.main]
+# ── Secrets (sensitive — pass via env vars, never hardcode) ────────────────
+variable "jwt_secret" {
+  description = "JWT signing secret — set via TF_VAR_jwt_secret"
+  sensitive   = true
 }
-
-# ── Route table — public ───────────────────────────────────────────────────
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-  tags = { Name = "${local.prefix}-rt-public" }
+variable "mail_username"    { default = "" }
+variable "mail_password" {
+  sensitive = true
+  default   = ""
 }
+variable "alert_recipients" { default = "" }
 
-resource "aws_route_table_association" "public" {
-  count          = length(aws_subnet.public)
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
-}
+# ── Container sizing ───────────────────────────────────────────────────────
+variable "service_cpu"    { default = 512  }
+variable "service_memory" { default = 1024 }
 
-# ── Route tables — private (one per AZ, routes through its NAT GW) ─────────
-resource "aws_route_table" "private" {
-  count  = length(var.private_subnet_cidrs)
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
-  }
-  tags = { Name = "${local.prefix}-rt-private-${count.index + 1}" }
-}
-
-resource "aws_route_table_association" "private" {
-  count          = length(aws_subnet.private)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
+# ── S3 image bucket ────────────────────────────────────────────────────────
+variable "image_bucket_name" {
+  description = "Must be globally unique. Change if name is taken."
+  default     = "inventoryms-product-images"
 }
