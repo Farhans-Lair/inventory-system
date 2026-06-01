@@ -44,9 +44,9 @@ resource "aws_db_instance" "auth" {
   db_subnet_group_name      = aws_db_subnet_group.main.name
   vpc_security_group_ids    = [aws_security_group.rds.id]
   parameter_group_name      = aws_db_parameter_group.mysql8.name
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${local.prefix}-auth-db-final"
-  backup_retention_period   = 7
+  skip_final_snapshot       = true
+  
+  backup_retention_period   = 0
   deletion_protection       = true
   storage_encrypted         = true
   multi_az                  = false
@@ -74,9 +74,9 @@ resource "aws_db_instance" "inventory" {
   db_subnet_group_name      = aws_db_subnet_group.main.name
   vpc_security_group_ids    = [aws_security_group.rds.id]
   parameter_group_name      = aws_db_parameter_group.mysql8.name
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${local.prefix}-inventory-db-final"
-  backup_retention_period   = 7
+  skip_final_snapshot       = true
+  
+  backup_retention_period   = 0
   deletion_protection       = true
   storage_encrypted         = true
   multi_az                  = false
@@ -102,9 +102,9 @@ resource "aws_db_instance" "notification" {
   db_subnet_group_name      = aws_db_subnet_group.main.name
   vpc_security_group_ids    = [aws_security_group.rds.id]
   parameter_group_name      = aws_db_parameter_group.mysql8.name
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${local.prefix}-notification-db-final"
-  backup_retention_period   = 7
+  skip_final_snapshot       = true
+  
+  backup_retention_period   = 0
   deletion_protection       = true
   storage_encrypted         = true
   multi_az                  = false
@@ -130,9 +130,9 @@ resource "aws_db_instance" "supplier" {
   db_subnet_group_name      = aws_db_subnet_group.main.name
   vpc_security_group_ids    = [aws_security_group.rds.id]
   parameter_group_name      = aws_db_parameter_group.mysql8.name
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${local.prefix}-supplier-db-final"
-  backup_retention_period   = 7
+  skip_final_snapshot       = true
+  
+  backup_retention_period   = 0
   deletion_protection       = true
   storage_encrypted         = true
   multi_az                  = false
