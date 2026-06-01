@@ -1,6 +1,10 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # ecs.tf — ECS Fargate cluster, task definitions, and services
-# One task definition + one service per microservice
+#
+# All sensitive values (DB_USER, DB_PASS, JWT_SECRET, mail creds) come
+# directly from terraform.tfvars via var.* references.
+# RDS endpoints are resolved after db instances are created via
+# aws_db_instance.<name>.address attributes.
 # ═══════════════════════════════════════════════════════════════════════════
 
 data "aws_caller_identity" "ecs" {}
@@ -8,7 +12,6 @@ data "aws_caller_identity" "ecs" {}
 # ── ECS Cluster ────────────────────────────────────────────────────────────
 resource "aws_ecs_cluster" "main" {
   name = "${local.prefix}-cluster"
-
   setting {
     name  = "containerInsights"
     value = "enabled"
@@ -24,14 +27,13 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   }
 }
 
-# ── CloudWatch Log Groups (one per service) ────────────────────────────────
+# ── CloudWatch Log Groups ──────────────────────────────────────────────────
 resource "aws_cloudwatch_log_group" "services" {
   for_each          = local.services
   name              = "/ecs/${local.prefix}/${each.key}"
   retention_in_days = 30
 }
 
-# ── Helper: ECR image URL for a service ───────────────────────────────────
 locals {
   account_id = data.aws_caller_identity.ecs.account_id
   ecr_base   = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${local.prefix}"
@@ -55,19 +57,17 @@ resource "aws_ecs_task_definition" "auth" {
     essential = true
     portMappings = [{ containerPort = 8081, protocol = "tcp" }]
     environment = [
-      { name = "AUTH_DB_NAME",    value = "authdb" },
-      { name = "COOKIE_SECURE",   value = "true" },
-      { name = "MAIL_HOST",       value = "smtp.gmail.com" },
-      { name = "MAIL_PORT",       value = "587" },
-    ]
-    secrets = [
-      { name = "DB_USER",       valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_USER::" },
-      { name = "DB_PASS",       valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
-      { name = "MAIL_USERNAME", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_USERNAME::" },
-      { name = "MAIL_PASSWORD", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
+      { name = "DB_USER",          value = var.db_username },
+      { name = "DB_PASS",          value = var.db_password },
+      { name = "AUTH_DB_NAME",     value = "authdb" },
+      { name = "JWT_SECRET",       value = var.jwt_secret },
+      { name = "COOKIE_SECURE",    value = "true" },
+      { name = "MAIL_HOST",        value = "smtp.gmail.com" },
+      { name = "MAIL_PORT",        value = "587" },
+      { name = "MAIL_USERNAME",    value = var.mail_username },
+      { name = "MAIL_PASSWORD",    value = var.mail_password },
       { name = "spring.datasource.url",
-        valueFrom = "${aws_secretsmanager_secret.db_endpoints.arn}:AUTH_DB_HOST::" },
+        value = "jdbc:mysql://${aws_db_instance.auth.address}:3306/authdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -81,25 +81,22 @@ resource "aws_ecs_task_definition" "auth" {
 }
 
 resource "aws_ecs_service" "auth" {
-  name                               = "${local.prefix}-auth"
-  cluster                            = aws_ecs_cluster.main.id
-  task_definition                    = aws_ecs_task_definition.auth.arn
-  desired_count                      = 1
-  launch_type                        = "FARGATE"
-  health_check_grace_period_seconds  = 120
-
+  name                              = "${local.prefix}-auth"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.auth.arn
+  desired_count                     = 1
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 120
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
-
   load_balancer {
     target_group_arn = aws_lb_target_group.auth.arn
     container_name   = "auth-service"
     container_port   = 8081
   }
-
   depends_on = [aws_lb_listener_rule.auth]
 }
 
@@ -121,18 +118,16 @@ resource "aws_ecs_task_definition" "inventory" {
     essential = true
     portMappings = [{ containerPort = 8082, protocol = "tcp" }]
     environment = [
-      { name = "INVENTORY_DB_NAME", value = "inventorydb" },
-      { name = "MINIO_ENDPOINT",    value = "https://s3.${var.aws_region}.amazonaws.com" },
-      { name = "MINIO_BUCKET",      value = aws_s3_bucket.images.id },
-      { name = "MINIO_ACCESS_KEY",  value = "" },
-      { name = "MINIO_SECRET_KEY",  value = "" },
-    ]
-    secrets = [
-      { name = "DB_USER",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_USER::" },
-      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "DB_USER",            value = var.db_username },
+      { name = "DB_PASS",            value = var.db_password },
+      { name = "INVENTORY_DB_NAME",  value = "inventorydb" },
+      { name = "JWT_SECRET",         value = var.jwt_secret },
+      { name = "MINIO_ENDPOINT",     value = "https://s3.${var.aws_region}.amazonaws.com" },
+      { name = "MINIO_BUCKET",       value = aws_s3_bucket.images.id },
+      { name = "MINIO_ACCESS_KEY",   value = "" },
+      { name = "MINIO_SECRET_KEY",   value = "" },
       { name = "spring.datasource.url",
-        valueFrom = "${aws_secretsmanager_secret.db_endpoints.arn}:INVENTORY_DB_HOST::" },
+        value = "jdbc:mysql://${aws_db_instance.inventory.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -146,25 +141,22 @@ resource "aws_ecs_task_definition" "inventory" {
 }
 
 resource "aws_ecs_service" "inventory" {
-  name                               = "${local.prefix}-inventory"
-  cluster                            = aws_ecs_cluster.main.id
-  task_definition                    = aws_ecs_task_definition.inventory.arn
-  desired_count                      = 1
-  launch_type                        = "FARGATE"
-  health_check_grace_period_seconds  = 120
-
+  name                              = "${local.prefix}-inventory"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.inventory.arn
+  desired_count                     = 1
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 120
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
-
   load_balancer {
     target_group_arn = aws_lb_target_group.inventory.arn
     container_name   = "inventory-service"
     container_port   = 8082
   }
-
   depends_on = [aws_lb_listener_rule.inventory]
 }
 
@@ -186,19 +178,17 @@ resource "aws_ecs_task_definition" "notification" {
     essential = true
     portMappings = [{ containerPort = 8083, protocol = "tcp" }]
     environment = [
+      { name = "DB_USER",              value = var.db_username },
+      { name = "DB_PASS",              value = var.db_password },
       { name = "NOTIFICATION_DB_NAME", value = "notificationdb" },
+      { name = "JWT_SECRET",           value = var.jwt_secret },
       { name = "MAIL_HOST",            value = "smtp.gmail.com" },
       { name = "MAIL_PORT",            value = "587" },
-    ]
-    secrets = [
-      { name = "DB_USER",          valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_USER::" },
-      { name = "DB_PASS",          valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET",       valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
-      { name = "MAIL_USERNAME",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_USERNAME::" },
-      { name = "MAIL_PASSWORD",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
-      { name = "ALERT_RECIPIENTS", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:ALERT_RECIPIENTS::" },
+      { name = "MAIL_USERNAME",        value = var.mail_username },
+      { name = "MAIL_PASSWORD",        value = var.mail_password },
+      { name = "ALERT_RECIPIENTS",     value = var.alert_recipients },
       { name = "spring.datasource.url",
-        valueFrom = "${aws_secretsmanager_secret.db_endpoints.arn}:NOTIFICATION_DB_HOST::" },
+        value = "jdbc:mysql://${aws_db_instance.notification.address}:3306/notificationdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -212,25 +202,22 @@ resource "aws_ecs_task_definition" "notification" {
 }
 
 resource "aws_ecs_service" "notification" {
-  name                               = "${local.prefix}-notification"
-  cluster                            = aws_ecs_cluster.main.id
-  task_definition                    = aws_ecs_task_definition.notification.arn
-  desired_count                      = 1
-  launch_type                        = "FARGATE"
-  health_check_grace_period_seconds  = 120
-
+  name                              = "${local.prefix}-notification"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.notification.arn
+  desired_count                     = 1
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 120
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
-
   load_balancer {
     target_group_arn = aws_lb_target_group.notification.arn
     container_name   = "notification-service"
     container_port   = 8083
   }
-
   depends_on = [aws_lb_listener_rule.notification]
 }
 
@@ -252,14 +239,12 @@ resource "aws_ecs_task_definition" "reporting" {
     essential = true
     portMappings = [{ containerPort = 8084, protocol = "tcp" }]
     environment = [
+      { name = "DB_USER",           value = var.db_username },
+      { name = "DB_PASS",           value = var.db_password },
       { name = "INVENTORY_DB_NAME", value = "inventorydb" },
-    ]
-    secrets = [
-      { name = "DB_USER",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_USER::" },
-      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "JWT_SECRET",        value = var.jwt_secret },
       { name = "spring.datasource.url",
-        valueFrom = "${aws_secretsmanager_secret.db_endpoints.arn}:INVENTORY_DB_HOST::" },
+        value = "jdbc:mysql://${aws_db_instance.inventory.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -273,25 +258,22 @@ resource "aws_ecs_task_definition" "reporting" {
 }
 
 resource "aws_ecs_service" "reporting" {
-  name                               = "${local.prefix}-reporting"
-  cluster                            = aws_ecs_cluster.main.id
-  task_definition                    = aws_ecs_task_definition.reporting.arn
-  desired_count                      = 1
-  launch_type                        = "FARGATE"
-  health_check_grace_period_seconds  = 120
-
+  name                              = "${local.prefix}-reporting"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.reporting.arn
+  desired_count                     = 1
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 120
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
-
   load_balancer {
     target_group_arn = aws_lb_target_group.reporting.arn
     container_name   = "reporting-service"
     container_port   = 8084
   }
-
   depends_on = [aws_lb_listener_rule.reporting]
 }
 
@@ -313,14 +295,12 @@ resource "aws_ecs_task_definition" "supplier" {
     essential = true
     portMappings = [{ containerPort = 8085, protocol = "tcp" }]
     environment = [
+      { name = "DB_USER",          value = var.db_username },
+      { name = "DB_PASS",          value = var.db_password },
       { name = "SUPPLIER_DB_NAME", value = "supplierdb" },
-    ]
-    secrets = [
-      { name = "DB_USER",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_USER::" },
-      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "JWT_SECRET",       value = var.jwt_secret },
       { name = "spring.datasource.url",
-        valueFrom = "${aws_secretsmanager_secret.db_endpoints.arn}:SUPPLIER_DB_HOST::" },
+        value = "jdbc:mysql://${aws_db_instance.supplier.address}:3306/supplierdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -334,25 +314,22 @@ resource "aws_ecs_task_definition" "supplier" {
 }
 
 resource "aws_ecs_service" "supplier" {
-  name                               = "${local.prefix}-supplier"
-  cluster                            = aws_ecs_cluster.main.id
-  task_definition                    = aws_ecs_task_definition.supplier.arn
-  desired_count                      = 1
-  launch_type                        = "FARGATE"
-  health_check_grace_period_seconds  = 120
-
+  name                              = "${local.prefix}-supplier"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.supplier.arn
+  desired_count                     = 1
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 120
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
-
   load_balancer {
     target_group_arn = aws_lb_target_group.supplier.arn
     container_name   = "supplier-service"
     container_port   = 8085
   }
-
   depends_on = [aws_lb_listener_rule.supplier]
 }
 
@@ -391,18 +368,15 @@ resource "aws_ecs_service" "frontend" {
   desired_count                     = 1
   launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 30
-
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
-
   load_balancer {
     target_group_arn = aws_lb_target_group.frontend.arn
     container_name   = "frontend"
     container_port   = 80
   }
-
   depends_on = [aws_lb_listener.http]
 }
