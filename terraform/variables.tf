@@ -36,7 +36,10 @@ variable "jwt_secret" {
   sensitive   = true
 }
 variable "mail_username"    { default = "" }
-variable "mail_password"    { sensitive = true; default = "" }
+variable "mail_password" {
+  sensitive = true
+  default   = ""
+}
 variable "alert_recipients" { default = "" }
 
 # ── Container sizing ───────────────────────────────────────────────────────
