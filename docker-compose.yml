@@ -1,3 +1,5 @@
+version: "3.8"
+
 networks:
   inventory-net:
     driver: bridge
@@ -10,7 +12,6 @@ volumes:
   minio-data:
 
 services:
-
   auth-db:
     image: mysql:8.0
     container_name: auth-db
@@ -202,8 +203,48 @@ services:
       timeout: 5s
       retries: 5
 
+  dashboard-mfe:
+    build: ./frontend/dashboard-mfe
+    container_name: dashboard-mfe
+    ports:
+      - "3001:80"
+    networks:
+      - inventory-net
+
+  products-mfe:
+    build: ./frontend/products-mfe
+    container_name: products-mfe
+    ports:
+      - "3002:80"
+    networks:
+      - inventory-net
+
+  stock-mfe:
+    build: ./frontend/stock-mfe
+    container_name: stock-mfe
+    ports:
+      - "3003:80"
+    networks:
+      - inventory-net
+
+  supplier-mfe:
+    build: ./frontend/supplier-mfe
+    container_name: supplier-mfe
+    ports:
+      - "3004:80"
+    networks:
+      - inventory-net
+
+  reporting-mfe:
+    build: ./frontend/reporting-mfe
+    container_name: reporting-mfe
+    ports:
+      - "3005:80"
+    networks:
+      - inventory-net
+
   frontend:
-    build: ./frontend
+    build: ./frontend/shell
     container_name: frontend
     ports:
       - "${FRONTEND_PORT}:80"
@@ -215,3 +256,8 @@ services:
       - notification-service
       - reporting-service
       - supplier-service
+      - dashboard-mfe
+      - products-mfe
+      - stock-mfe
+      - supplier-mfe
+      - reporting-mfe
