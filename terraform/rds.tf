@@ -1,15 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# rds.tf — one RDS MySQL instance per bounded context
-#
-# deletion_protection = true  (compliance / governance requirement)
-#
-# Two destroy provisioners per instance:
-#   1. Disable deletion protection via AWS CLI
-#   2. Wait for the change to propagate before Terraform deletes
-#
-# On terraform destroy this runs automatically — no Console steps needed.
-# ═══════════════════════════════════════════════════════════════════════════
-
 resource "aws_db_subnet_group" "main" {
   name       = "${local.prefix}-db-subnet-group"
   subnet_ids = aws_subnet.private[*].id
@@ -19,7 +7,6 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_parameter_group" "mysql8" {
   name   = "${local.prefix}-mysql8"
   family = "mysql8.0"
-
   parameter {
     name  = "character_set_server"
     value = "utf8mb4"
@@ -53,12 +40,12 @@ resource "aws_db_instance" "auth" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${var.aws_region}"
+    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${var.aws_region}"
+    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 }
 
@@ -85,12 +72,12 @@ resource "aws_db_instance" "inventory" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${var.aws_region}"
+    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${var.aws_region}"
+    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 }
 
@@ -117,12 +104,12 @@ resource "aws_db_instance" "notification" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${var.aws_region}"
+    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${var.aws_region}"
+    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 }
 
@@ -149,11 +136,11 @@ resource "aws_db_instance" "supplier" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${var.aws_region}"
+    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 
   provisioner "local-exec" {
     when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${var.aws_region}"
+    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
   }
 }
