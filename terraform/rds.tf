@@ -39,13 +39,15 @@ resource "aws_db_instance" "auth" {
   tags                    = { Name = "${local.prefix}-auth-db" }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ap-south-1"
   }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ap-south-1"
   }
 }
 
@@ -71,13 +73,15 @@ resource "aws_db_instance" "inventory" {
   tags                    = { Name = "${local.prefix}-inventory-db" }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ap-south-1"
   }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ap-south-1"
   }
 }
 
@@ -103,13 +107,15 @@ resource "aws_db_instance" "notification" {
   tags                    = { Name = "${local.prefix}-notification-db" }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ap-south-1"
   }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ap-south-1"
   }
 }
 
@@ -135,12 +141,14 @@ resource "aws_db_instance" "supplier" {
   tags                    = { Name = "${local.prefix}-supplier-db" }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds modify-db-instance --db-instance-identifier ${self.identifier} --deletion-protection false --apply-immediately --region ap-south-1"
   }
 
   provisioner "local-exec" {
-    when    = destroy
-    command = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ${self.hosted_zone_id != null ? substr(self.availability_zone, 0, length(self.availability_zone) - 1) : "ap-south-1"}"
+    when        = destroy
+    interpreter = ["C:\\Windows\\System32\\cmd.exe", "/C"]
+    command     = "aws rds wait db-instance-available --db-instance-identifier ${self.identifier} --region ap-south-1"
   }
 }
