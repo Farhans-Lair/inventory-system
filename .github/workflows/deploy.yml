@@ -5,6 +5,16 @@ on:
     branches: [master, main]
   pull_request:
     branches: [master, main]
+  # Manual trigger — lets you deploy all services from GitHub UI
+  # without needing a code change
+  workflow_dispatch:
+    inputs:
+      deploy_all:
+        description: 'Deploy all services regardless of changes'
+        required: true
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
 
 env:
   AWS_REGION:  ap-south-1
@@ -22,15 +32,16 @@ jobs:
     name: Detect changed services
     runs-on: self-hosted
     outputs:
-      shared_lib:   ${{ steps.filter.outputs.shared_lib }}
-      auth:         ${{ steps.filter.outputs.auth }}
-      inventory:    ${{ steps.filter.outputs.inventory }}
-      notification: ${{ steps.filter.outputs.notification }}
-      reporting:    ${{ steps.filter.outputs.reporting }}
-      supplier:     ${{ steps.filter.outputs.supplier }}
-      frontend:     ${{ steps.filter.outputs.frontend }}
-      terraform:    ${{ steps.filter.outputs.terraform }}
+      shared_lib:   ${{ steps.filter.outputs.shared_lib   || inputs.deploy_all == 'true' }}
+      auth:         ${{ steps.filter.outputs.auth         || inputs.deploy_all == 'true' }}
+      inventory:    ${{ steps.filter.outputs.inventory    || inputs.deploy_all == 'true' }}
+      notification: ${{ steps.filter.outputs.notification || inputs.deploy_all == 'true' }}
+      reporting:    ${{ steps.filter.outputs.reporting    || inputs.deploy_all == 'true' }}
+      supplier:     ${{ steps.filter.outputs.supplier     || inputs.deploy_all == 'true' }}
+      frontend:     ${{ steps.filter.outputs.frontend     || inputs.deploy_all == 'true' }}
+      terraform:    ${{ steps.filter.outputs.terraform    || inputs.deploy_all == 'true' }}
       ecr_base:     ${{ steps.ecr.outputs.ecr_base }}
+      force_all:    ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_all == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +90,8 @@ jobs:
       needs.detect-changes.outputs.inventory    == 'true' ||
       needs.detect-changes.outputs.notification == 'true' ||
       needs.detect-changes.outputs.reporting    == 'true' ||
-      needs.detect-changes.outputs.supplier     == 'true'
+      needs.detect-changes.outputs.supplier     == 'true' ||
+      needs.detect-changes.outputs.force_all    == 'true'
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -99,8 +111,8 @@ jobs:
     needs: [detect-changes, build-shared-lib]
     if: |
       always() &&
-      needs.detect-changes.outputs.auth == 'true' &&
-      github.ref == 'refs/heads/master'
+      (needs.detect-changes.outputs.auth == 'true' || needs.detect-changes.outputs.force_all == 'true') &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: self-hosted
     env:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
@@ -134,8 +146,8 @@ jobs:
     needs: [detect-changes, build-shared-lib]
     if: |
       always() &&
-      needs.detect-changes.outputs.inventory == 'true' &&
-      github.ref == 'refs/heads/master'
+      (needs.detect-changes.outputs.inventory == 'true' || needs.detect-changes.outputs.force_all == 'true') &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: self-hosted
     env:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
@@ -169,8 +181,8 @@ jobs:
     needs: [detect-changes, build-shared-lib]
     if: |
       always() &&
-      needs.detect-changes.outputs.notification == 'true' &&
-      github.ref == 'refs/heads/master'
+      (needs.detect-changes.outputs.notification == 'true' || needs.detect-changes.outputs.force_all == 'true') &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: self-hosted
     env:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
@@ -204,8 +216,8 @@ jobs:
     needs: [detect-changes, build-shared-lib]
     if: |
       always() &&
-      needs.detect-changes.outputs.reporting == 'true' &&
-      github.ref == 'refs/heads/master'
+      (needs.detect-changes.outputs.reporting == 'true' || needs.detect-changes.outputs.force_all == 'true') &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: self-hosted
     env:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
@@ -239,8 +251,8 @@ jobs:
     needs: [detect-changes, build-shared-lib]
     if: |
       always() &&
-      needs.detect-changes.outputs.supplier == 'true' &&
-      github.ref == 'refs/heads/master'
+      (needs.detect-changes.outputs.supplier == 'true' || needs.detect-changes.outputs.force_all == 'true') &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: self-hosted
     env:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
@@ -273,8 +285,8 @@ jobs:
     name: frontend MFEs - ECR - ECS
     needs: detect-changes
     if: |
-      needs.detect-changes.outputs.frontend == 'true' &&
-      github.ref == 'refs/heads/master'
+      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.force_all == 'true') &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: self-hosted
     env:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
@@ -319,7 +331,9 @@ jobs:
   terraform:
     name: Terraform - plan / apply
     needs: detect-changes
-    if: needs.detect-changes.outputs.terraform == 'true'
+    if: |
+      needs.detect-changes.outputs.terraform == 'true' ||
+      needs.detect-changes.outputs.force_all == 'true'
     runs-on: self-hosted
     defaults:
       run:
@@ -333,7 +347,7 @@ jobs:
       - name: terraform plan
         run: terraform plan -var-file=terraform.tfvars -no-color
       - name: terraform apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
         run: terraform apply -var-file=terraform.tfvars -auto-approve
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -348,7 +362,7 @@ jobs:
       - deploy-reporting
       - deploy-supplier
       - deploy-frontend
-    if: always() && github.ref == 'refs/heads/master'
+    if: always() && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: self-hosted
     steps:
       - name: Write summary
