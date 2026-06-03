@@ -10,12 +10,6 @@ env:
   AWS_REGION:  ap-south-1
   ECS_CLUSTER: inventoryms-prod-cluster
 
-# Use cmd as default shell for all jobs — avoids PowerShell execution policy
-# restrictions on the self-hosted runner service account
-defaults:
-  run:
-    shell: cmd
-
 jobs:
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 1 — detect which services changed
@@ -65,10 +59,9 @@ jobs:
 
       - name: Resolve ECR base URL
         id: ecr
-        shell: cmd
         run: |
-          for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ACCOUNT_ID=%%i
-          echo ecr_base=%ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com/inventoryms-prod >> %GITHUB_OUTPUT%
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "ecr_base=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/inventoryms-prod" >> $GITHUB_OUTPUT
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 2 — build shared-lib
@@ -86,10 +79,8 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-
       - name: Install shared-lib to local Maven cache
         run: mvn install -pl shared-lib -q -DskipTests
-
       - uses: actions/upload-artifact@v4
         with:
           name: shared-lib-m2
@@ -111,31 +102,25 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Restore shared-lib
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
         continue-on-error: true
-
       - name: Run tests
         run: mvn test -pl auth-service -q
-
       - name: Authenticate Docker with ECR
         run: |
-          for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
-
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - name: Build and push image
         run: |
-          docker build -t %ECR_BASE%/auth-service:${{ github.sha }} -t %ECR_BASE%/auth-service:latest ./auth-service
-          docker push %ECR_BASE%/auth-service:${{ github.sha }}
-          docker push %ECR_BASE%/auth-service:latest
-
+          docker build -t $ECR_BASE/auth-service:${{ github.sha }} -t $ECR_BASE/auth-service:latest ./auth-service
+          docker push $ECR_BASE/auth-service:${{ github.sha }}
+          docker push $ECR_BASE/auth-service:latest
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster %ECS_CLUSTER% --service inventoryms-prod-auth --force-new-deployment --region %AWS_REGION%
-
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-auth --force-new-deployment --region $AWS_REGION
       - name: Wait for stability
-        run: aws ecs wait services-stable --cluster %ECS_CLUSTER% --services inventoryms-prod-auth --region %AWS_REGION%
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-auth --region $AWS_REGION
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 4 — inventory-service
@@ -160,17 +145,17 @@ jobs:
         run: mvn test -pl inventory-service -q
       - name: Authenticate Docker with ECR
         run: |
-          for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - name: Build and push image
         run: |
-          docker build -t %ECR_BASE%/inventory-service:${{ github.sha }} -t %ECR_BASE%/inventory-service:latest ./inventory-service
-          docker push %ECR_BASE%/inventory-service:${{ github.sha }}
-          docker push %ECR_BASE%/inventory-service:latest
+          docker build -t $ECR_BASE/inventory-service:${{ github.sha }} -t $ECR_BASE/inventory-service:latest ./inventory-service
+          docker push $ECR_BASE/inventory-service:${{ github.sha }}
+          docker push $ECR_BASE/inventory-service:latest
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster %ECS_CLUSTER% --service inventoryms-prod-inventory --force-new-deployment --region %AWS_REGION%
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-inventory --force-new-deployment --region $AWS_REGION
       - name: Wait for stability
-        run: aws ecs wait services-stable --cluster %ECS_CLUSTER% --services inventoryms-prod-inventory --region %AWS_REGION%
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-inventory --region $AWS_REGION
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 5 — notification-service
@@ -195,17 +180,17 @@ jobs:
         run: mvn test -pl notification-service -q
       - name: Authenticate Docker with ECR
         run: |
-          for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - name: Build and push image
         run: |
-          docker build -t %ECR_BASE%/notification-service:${{ github.sha }} -t %ECR_BASE%/notification-service:latest ./notification-service
-          docker push %ECR_BASE%/notification-service:${{ github.sha }}
-          docker push %ECR_BASE%/notification-service:latest
+          docker build -t $ECR_BASE/notification-service:${{ github.sha }} -t $ECR_BASE/notification-service:latest ./notification-service
+          docker push $ECR_BASE/notification-service:${{ github.sha }}
+          docker push $ECR_BASE/notification-service:latest
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster %ECS_CLUSTER% --service inventoryms-prod-notification --force-new-deployment --region %AWS_REGION%
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-notification --force-new-deployment --region $AWS_REGION
       - name: Wait for stability
-        run: aws ecs wait services-stable --cluster %ECS_CLUSTER% --services inventoryms-prod-notification --region %AWS_REGION%
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-notification --region $AWS_REGION
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 6 — reporting-service
@@ -230,17 +215,17 @@ jobs:
         run: mvn test -pl reporting-service -q
       - name: Authenticate Docker with ECR
         run: |
-          for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - name: Build and push image
         run: |
-          docker build -t %ECR_BASE%/reporting-service:${{ github.sha }} -t %ECR_BASE%/reporting-service:latest ./reporting-service
-          docker push %ECR_BASE%/reporting-service:${{ github.sha }}
-          docker push %ECR_BASE%/reporting-service:latest
+          docker build -t $ECR_BASE/reporting-service:${{ github.sha }} -t $ECR_BASE/reporting-service:latest ./reporting-service
+          docker push $ECR_BASE/reporting-service:${{ github.sha }}
+          docker push $ECR_BASE/reporting-service:latest
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster %ECS_CLUSTER% --service inventoryms-prod-reporting --force-new-deployment --region %AWS_REGION%
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-reporting --force-new-deployment --region $AWS_REGION
       - name: Wait for stability
-        run: aws ecs wait services-stable --cluster %ECS_CLUSTER% --services inventoryms-prod-reporting --region %AWS_REGION%
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-reporting --region $AWS_REGION
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 7 — supplier-service
@@ -265,17 +250,17 @@ jobs:
         run: mvn test -pl supplier-service -q
       - name: Authenticate Docker with ECR
         run: |
-          for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - name: Build and push image
         run: |
-          docker build -t %ECR_BASE%/supplier-service:${{ github.sha }} -t %ECR_BASE%/supplier-service:latest ./supplier-service
-          docker push %ECR_BASE%/supplier-service:${{ github.sha }}
-          docker push %ECR_BASE%/supplier-service:latest
+          docker build -t $ECR_BASE/supplier-service:${{ github.sha }} -t $ECR_BASE/supplier-service:latest ./supplier-service
+          docker push $ECR_BASE/supplier-service:${{ github.sha }}
+          docker push $ECR_BASE/supplier-service:latest
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster %ECS_CLUSTER% --service inventoryms-prod-supplier --force-new-deployment --region %AWS_REGION%
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-supplier --force-new-deployment --region $AWS_REGION
       - name: Wait for stability
-        run: aws ecs wait services-stable --cluster %ECS_CLUSTER% --services inventoryms-prod-supplier --region %AWS_REGION%
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-supplier --region $AWS_REGION
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 8 — frontend
@@ -291,48 +276,38 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Build dashboard-mfe
         working-directory: frontend/dashboard-mfe
         run: npm ci && npm run build
-
       - name: Build products-mfe
         working-directory: frontend/products-mfe
         run: npm ci && npm run build
-
       - name: Build stock-mfe
         working-directory: frontend/stock-mfe
         run: npm ci && npm run build
-
       - name: Build supplier-mfe
         working-directory: frontend/supplier-mfe
         run: npm ci && npm run build
-
       - name: Build reporting-mfe
         working-directory: frontend/reporting-mfe
         run: npm ci && npm run build
-
       - name: Build shell
         working-directory: frontend/shell
         run: npm ci && npm run build
-
       - name: Authenticate Docker with ECR
         run: |
-          for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
-
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
-          docker build -t %ECR_BASE%/frontend:${{ github.sha }} -t %ECR_BASE%/frontend:latest .
-          docker push %ECR_BASE%/frontend:${{ github.sha }}
-          docker push %ECR_BASE%/frontend:latest
-
+          docker build -t $ECR_BASE/frontend:${{ github.sha }} -t $ECR_BASE/frontend:latest .
+          docker push $ECR_BASE/frontend:${{ github.sha }}
+          docker push $ECR_BASE/frontend:latest
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster %ECS_CLUSTER% --service inventoryms-prod-frontend --force-new-deployment --region %AWS_REGION%
-
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-frontend --force-new-deployment --region $AWS_REGION
       - name: Wait for stability
-        run: aws ecs wait services-stable --cluster %ECS_CLUSTER% --services inventoryms-prod-frontend --region %AWS_REGION%
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-frontend --region $AWS_REGION
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 9 — Terraform
@@ -374,13 +349,14 @@ jobs:
     steps:
       - name: Write summary
         run: |
-          echo ## InventoryMS Deployment Summary >> %GITHUB_STEP_SUMMARY%
-          echo. >> %GITHUB_STEP_SUMMARY%
-          echo ^| Service ^| Result ^| >> %GITHUB_STEP_SUMMARY%
-          echo ^|---------|--------^| >> %GITHUB_STEP_SUMMARY%
-          echo ^| auth-service ^| ${{ needs.deploy-auth.result }} ^| >> %GITHUB_STEP_SUMMARY%
-          echo ^| inventory-service ^| ${{ needs.deploy-inventory.result }} ^| >> %GITHUB_STEP_SUMMARY%
-          echo ^| notification-service ^| ${{ needs.deploy-notification.result }} ^| >> %GITHUB_STEP_SUMMARY%
-          echo ^| reporting-service ^| ${{ needs.deploy-reporting.result }} ^| >> %GITHUB_STEP_SUMMARY%
-          echo ^| supplier-service ^| ${{ needs.deploy-supplier.result }} ^| >> %GITHUB_STEP_SUMMARY%
-          echo ^| frontend ^| ${{ needs.deploy-frontend.result }} ^| >> %GITHUB_STEP_SUMMARY%
+          echo "## InventoryMS Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| auth-service         | ${{ needs.deploy-auth.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| inventory-service    | ${{ needs.deploy-inventory.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| notification-service | ${{ needs.deploy-notification.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| reporting-service    | ${{ needs.deploy-reporting.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| supplier-service     | ${{ needs.deploy-supplier.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| frontend             | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
