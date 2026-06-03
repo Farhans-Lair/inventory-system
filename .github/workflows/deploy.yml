@@ -69,14 +69,11 @@ jobs:
             terraform:
               - 'terraform/**'
 
-      # Explicitly set each flag — if deploy_all=true, force everything to true
-      # otherwise use the path filter result
       - name: Set deployment flags
         id: set-flags
         run: |
           $force = "${{ github.event_name == 'workflow_dispatch' && inputs.deploy_all == 'true' }}"
           Write-Host "Force all: $force"
-
           if ($force -eq "true") {
             echo "auth=true"         >> $env:GITHUB_OUTPUT
             echo "inventory=true"    >> $env:GITHUB_OUTPUT
@@ -105,6 +102,7 @@ jobs:
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 2 — build shared-lib
+# FIX: setup-java@v4 downloads Java 21 for this job — no machine install needed
 # ───────────────────────────────────────────────────────────────────────────
   build-shared-lib:
     name: Build shared-lib
@@ -119,8 +117,16 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
+
+      # FIX 1 — download Java 21 for this job (runner only has Java 17)
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
       - name: Install shared-lib to local Maven cache
         run: mvn install -pl shared-lib -q -DskipTests
+
       - uses: actions/upload-artifact@v4
         with:
           name: shared-lib-m2
@@ -142,23 +148,35 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
+
+      # FIX 1 — Java 21 for Maven compilation
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
       - name: Restore shared-lib
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
         continue-on-error: true
+
       - name: Run tests
         run: mvn test -pl auth-service -q
+
       - name: Authenticate Docker with ECR
         run: |
           $ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
           aws ecr get-login-password --region $env:AWS_REGION | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$env:AWS_REGION.amazonaws.com"
+
       - name: Build and push image
         run: |
           docker build -t "$env:ECR_BASE/auth-service:${{ github.sha }}" -t "$env:ECR_BASE/auth-service:latest" ./auth-service
           docker push "$env:ECR_BASE/auth-service:${{ github.sha }}"
           docker push "$env:ECR_BASE/auth-service:latest"
+
       - name: Force ECS redeploy
         run: aws ecs update-service --cluster $env:ECS_CLUSTER --service inventoryms-prod-auth --force-new-deployment --region $env:AWS_REGION
+
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-auth --region $env:AWS_REGION
 
@@ -177,6 +195,8 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
       - name: Restore shared-lib
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
@@ -212,6 +232,8 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
       - name: Restore shared-lib
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
@@ -247,6 +269,8 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
       - name: Restore shared-lib
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
@@ -282,6 +306,8 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
       - name: Restore shared-lib
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
@@ -304,6 +330,7 @@ jobs:
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 8 — frontend
+# FIX: npm install instead of npm ci (no package-lock.json in MFE folders)
 # ───────────────────────────────────────────────────────────────────────────
   deploy-frontend:
     name: frontend MFEs - ECR - ECS
@@ -316,41 +343,53 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
+
+      # FIX 3 — use npm install instead of npm ci (no package-lock.json exists)
       - name: Build dashboard-mfe
         working-directory: frontend/dashboard-mfe
-        run: npm ci; npm run build
+        run: npm install; npm run build
+
       - name: Build products-mfe
         working-directory: frontend/products-mfe
-        run: npm ci; npm run build
+        run: npm install; npm run build
+
       - name: Build stock-mfe
         working-directory: frontend/stock-mfe
-        run: npm ci; npm run build
+        run: npm install; npm run build
+
       - name: Build supplier-mfe
         working-directory: frontend/supplier-mfe
-        run: npm ci; npm run build
+        run: npm install; npm run build
+
       - name: Build reporting-mfe
         working-directory: frontend/reporting-mfe
-        run: npm ci; npm run build
+        run: npm install; npm run build
+
       - name: Build shell
         working-directory: frontend/shell
-        run: npm ci; npm run build
+        run: npm install; npm run build
+
       - name: Authenticate Docker with ECR
         run: |
           $ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
           aws ecr get-login-password --region $env:AWS_REGION | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$env:AWS_REGION.amazonaws.com"
+
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
           docker build -t "$env:ECR_BASE/frontend:${{ github.sha }}" -t "$env:ECR_BASE/frontend:latest" .
           docker push "$env:ECR_BASE/frontend:${{ github.sha }}"
           docker push "$env:ECR_BASE/frontend:latest"
+
       - name: Force ECS redeploy
         run: aws ecs update-service --cluster $env:ECS_CLUSTER --service inventoryms-prod-frontend --force-new-deployment --region $env:AWS_REGION
+
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-frontend --region $env:AWS_REGION
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 9 — Terraform
+# FIX: quote the var-file argument to prevent PowerShell splitting at =
 # ───────────────────────────────────────────────────────────────────────────
   terraform:
     name: Terraform - plan / apply
@@ -362,15 +401,20 @@ jobs:
         working-directory: terraform
     steps:
       - uses: actions/checkout@v4
+
       - name: terraform init
         run: terraform init
+
       - name: terraform validate
         run: terraform validate
+
+      # FIX 2 — quote var-file to prevent PowerShell splitting at = sign
       - name: terraform plan
-        run: terraform plan -var-file=terraform.tfvars -no-color
+        run: terraform plan "-var-file=terraform.tfvars" -no-color
+
       - name: terraform apply
         if: github.event_name == 'push' && github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
-        run: terraform apply -var-file=terraform.tfvars -auto-approve
+        run: terraform apply "-var-file=terraform.tfvars" -auto-approve
 
 # ───────────────────────────────────────────────────────────────────────────
 # JOB 10 — deployment summary
