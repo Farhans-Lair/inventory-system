@@ -1,10 +1,8 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# ecs.tf — ECS Fargate cluster, task definitions, and services
+# ecs.tf — ECS cluster, task definitions, and services on EC2
 #
-# All sensitive values (DB_USER, DB_PASS, JWT_SECRET, mail creds) come
-# directly from terraform.tfvars via var.* references.
-# RDS endpoints are resolved after db instances are created via
-# aws_db_instance.<name>.address attributes.
+# Changed from Fargate to EC2 launch type backed by the ASG in asg.tf.
+# Network mode stays awsvpc so target groups use IP targets (same as Fargate).
 # ═══════════════════════════════════════════════════════════════════════════
 
 data "aws_caller_identity" "ecs" {}
@@ -18,12 +16,15 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
+# Link the EC2 capacity provider to the cluster
 resource "aws_ecs_cluster_capacity_providers" "main" {
   cluster_name       = aws_ecs_cluster.main.name
-  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+  capacity_providers = [aws_ecs_capacity_provider.ec2.name]
+
   default_capacity_provider_strategy {
-    capacity_provider = "FARGATE"
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
     weight            = 1
+    base              = 1
   }
 }
 
@@ -44,7 +45,7 @@ locals {
 # ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "auth" {
   family                   = "${local.prefix}-auth"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   network_mode             = "awsvpc"
   cpu                      = local.services.auth.cpu
   memory                   = local.services.auth.memory
@@ -57,21 +58,21 @@ resource "aws_ecs_task_definition" "auth" {
     essential = true
     portMappings = [{ containerPort = 8081, protocol = "tcp" }]
     environment = [
-      { name = "DB_USER",          value = var.db_username },
-      { name = "DB_PASS",          value = var.db_password },
-      { name = "AUTH_DB_NAME",     value = "authdb" },
-      { name = "JWT_SECRET",       value = var.jwt_secret },
-      { name = "COOKIE_SECURE",    value = "true" },
-      { name = "MAIL_HOST",        value = "smtp.gmail.com" },
-      { name = "MAIL_PORT",        value = "587" },
-      { name = "MAIL_USERNAME",    value = var.mail_username },
-      { name = "MAIL_PASSWORD",    value = var.mail_password },
+      { name = "DB_USER",       value = var.db_username },
+      { name = "DB_PASS",       value = var.db_password },
+      { name = "AUTH_DB_NAME",  value = "authdb" },
+      { name = "JWT_SECRET",    value = var.jwt_secret },
+      { name = "COOKIE_SECURE", value = "true" },
+      { name = "MAIL_HOST",     value = "smtp.gmail.com" },
+      { name = "MAIL_PORT",     value = "587" },
+      { name = "MAIL_USERNAME", value = var.mail_username },
+      { name = "MAIL_PASSWORD", value = var.mail_password },
       { name = "spring.datasource.url",
         value = "jdbc:mysql://${aws_db_instance.auth.address}:3306/authdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
-      options = {
+      options   = {
         "awslogs-group"         = "/ecs/${local.prefix}/auth"
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "auth"
@@ -85,18 +86,24 @@ resource "aws_ecs_service" "auth" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.auth.arn
   desired_count                     = 1
-  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 120
-  network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs.id]
-    assign_public_ip = false
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
   }
+
+  network_configuration {
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.auth.arn
     container_name   = "auth-service"
     container_port   = 8081
   }
+
   depends_on = [aws_lb_listener_rule.auth]
 }
 
@@ -105,7 +112,7 @@ resource "aws_ecs_service" "auth" {
 # ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "inventory" {
   family                   = "${local.prefix}-inventory"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   network_mode             = "awsvpc"
   cpu                      = local.services.inventory.cpu
   memory                   = local.services.inventory.memory
@@ -118,20 +125,20 @@ resource "aws_ecs_task_definition" "inventory" {
     essential = true
     portMappings = [{ containerPort = 8082, protocol = "tcp" }]
     environment = [
-      { name = "DB_USER",            value = var.db_username },
-      { name = "DB_PASS",            value = var.db_password },
-      { name = "INVENTORY_DB_NAME",  value = "inventorydb" },
-      { name = "JWT_SECRET",         value = var.jwt_secret },
-      { name = "MINIO_ENDPOINT",     value = "https://s3.${var.aws_region}.amazonaws.com" },
-      { name = "MINIO_BUCKET",       value = aws_s3_bucket.images.id },
-      { name = "MINIO_ACCESS_KEY",   value = "" },
-      { name = "MINIO_SECRET_KEY",   value = "" },
+      { name = "DB_USER",           value = var.db_username },
+      { name = "DB_PASS",           value = var.db_password },
+      { name = "INVENTORY_DB_NAME", value = "inventorydb" },
+      { name = "JWT_SECRET",        value = var.jwt_secret },
+      { name = "MINIO_ENDPOINT",    value = "https://s3.${var.aws_region}.amazonaws.com" },
+      { name = "MINIO_BUCKET",      value = aws_s3_bucket.images.id },
+      { name = "MINIO_ACCESS_KEY",  value = "" },
+      { name = "MINIO_SECRET_KEY",  value = "" },
       { name = "spring.datasource.url",
         value = "jdbc:mysql://${aws_db_instance.inventory.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
-      options = {
+      options   = {
         "awslogs-group"         = "/ecs/${local.prefix}/inventory"
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "inventory"
@@ -145,18 +152,24 @@ resource "aws_ecs_service" "inventory" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.inventory.arn
   desired_count                     = 1
-  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 120
-  network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs.id]
-    assign_public_ip = false
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
   }
+
+  network_configuration {
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.inventory.arn
     container_name   = "inventory-service"
     container_port   = 8082
   }
+
   depends_on = [aws_lb_listener_rule.inventory]
 }
 
@@ -165,7 +178,7 @@ resource "aws_ecs_service" "inventory" {
 # ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "notification" {
   family                   = "${local.prefix}-notification"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   network_mode             = "awsvpc"
   cpu                      = local.services.notification.cpu
   memory                   = local.services.notification.memory
@@ -192,7 +205,7 @@ resource "aws_ecs_task_definition" "notification" {
     ]
     logConfiguration = {
       logDriver = "awslogs"
-      options = {
+      options   = {
         "awslogs-group"         = "/ecs/${local.prefix}/notification"
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "notification"
@@ -206,18 +219,24 @@ resource "aws_ecs_service" "notification" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.notification.arn
   desired_count                     = 1
-  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 120
-  network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs.id]
-    assign_public_ip = false
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
   }
+
+  network_configuration {
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.notification.arn
     container_name   = "notification-service"
     container_port   = 8083
   }
+
   depends_on = [aws_lb_listener_rule.notification]
 }
 
@@ -226,7 +245,7 @@ resource "aws_ecs_service" "notification" {
 # ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "reporting" {
   family                   = "${local.prefix}-reporting"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   network_mode             = "awsvpc"
   cpu                      = local.services.reporting.cpu
   memory                   = local.services.reporting.memory
@@ -248,7 +267,7 @@ resource "aws_ecs_task_definition" "reporting" {
     ]
     logConfiguration = {
       logDriver = "awslogs"
-      options = {
+      options   = {
         "awslogs-group"         = "/ecs/${local.prefix}/reporting"
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "reporting"
@@ -262,18 +281,24 @@ resource "aws_ecs_service" "reporting" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.reporting.arn
   desired_count                     = 1
-  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 120
-  network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs.id]
-    assign_public_ip = false
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
   }
+
+  network_configuration {
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.reporting.arn
     container_name   = "reporting-service"
     container_port   = 8084
   }
+
   depends_on = [aws_lb_listener_rule.reporting]
 }
 
@@ -282,7 +307,7 @@ resource "aws_ecs_service" "reporting" {
 # ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "supplier" {
   family                   = "${local.prefix}-supplier"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   network_mode             = "awsvpc"
   cpu                      = local.services.supplier.cpu
   memory                   = local.services.supplier.memory
@@ -304,7 +329,7 @@ resource "aws_ecs_task_definition" "supplier" {
     ]
     logConfiguration = {
       logDriver = "awslogs"
-      options = {
+      options   = {
         "awslogs-group"         = "/ecs/${local.prefix}/supplier"
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "supplier"
@@ -318,18 +343,24 @@ resource "aws_ecs_service" "supplier" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.supplier.arn
   desired_count                     = 1
-  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 120
-  network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs.id]
-    assign_public_ip = false
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
   }
+
+  network_configuration {
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.supplier.arn
     container_name   = "supplier-service"
     container_port   = 8085
   }
+
   depends_on = [aws_lb_listener_rule.supplier]
 }
 
@@ -338,7 +369,7 @@ resource "aws_ecs_service" "supplier" {
 # ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "frontend" {
   family                   = "${local.prefix}-frontend"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   network_mode             = "awsvpc"
   cpu                      = local.services.frontend.cpu
   memory                   = local.services.frontend.memory
@@ -352,7 +383,7 @@ resource "aws_ecs_task_definition" "frontend" {
     portMappings = [{ containerPort = 80, protocol = "tcp" }]
     logConfiguration = {
       logDriver = "awslogs"
-      options = {
+      options   = {
         "awslogs-group"         = "/ecs/${local.prefix}/frontend"
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "frontend"
@@ -366,17 +397,23 @@ resource "aws_ecs_service" "frontend" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.frontend.arn
   desired_count                     = 1
-  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 30
-  network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs.id]
-    assign_public_ip = false
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
   }
+
+  network_configuration {
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
+  }
+
   load_balancer {
     target_group_arn = aws_lb_target_group.frontend.arn
     container_name   = "frontend"
     container_port   = 80
   }
+
   depends_on = [aws_lb_listener.http]
 }

@@ -2,20 +2,9 @@
 # variables.tf — all configurable values in one place
 # ═══════════════════════════════════════════════════════════════════════════
 
-variable "aws_region" {
-  description = "AWS region to deploy into"
-  default     = "ap-south-1"
-}
-
-variable "project" {
-  description = "Short project name used as a prefix on every resource"
-  default     = "inventoryms"
-}
-
-variable "environment" {
-  description = "Deployment environment tag (dev / staging / prod)"
-  default     = "prod"
-}
+variable "aws_region"   { default = "ap-south-1" }
+variable "project"      { default = "inventoryms" }
+variable "environment"  { default = "prod" }
 
 # ── Networking ─────────────────────────────────────────────────────────────
 variable "vpc_cidr"             { default = "10.0.0.0/16" }
@@ -23,17 +12,16 @@ variable "public_subnet_cidrs"  { default = ["10.0.1.0/24", "10.0.2.0/24"] }
 variable "private_subnet_cidrs" { default = ["10.0.10.0/24", "10.0.11.0/24"] }
 
 # ── Database ───────────────────────────────────────────────────────────────
-variable "db_username"       { default = "admin" }
-variable "db_password"       {
-  description = "Master DB password — set via TF_VAR_db_password env var"
+variable "db_username"       { default = "inventoryadmin" }
+variable "db_password" {
+  description = "Master DB password — no @ / \" or spaces"
   sensitive   = true
 }
 variable "db_instance_class" { default = "db.t3.micro" }
 
-# ── Secrets (sensitive — pass via env vars, never hardcode) ────────────────
+# ── Secrets ────────────────────────────────────────────────────────────────
 variable "jwt_secret" {
-  description = "JWT signing secret — set via TF_VAR_jwt_secret"
-  sensitive   = true
+  sensitive = true
 }
 variable "mail_username"    { default = "" }
 variable "mail_password" {
@@ -46,8 +34,30 @@ variable "alert_recipients" { default = "" }
 variable "service_cpu"    { default = 512  }
 variable "service_memory" { default = 1024 }
 
-# ── S3 image bucket ────────────────────────────────────────────────────────
+# ── EC2 ECS instances ──────────────────────────────────────────────────────
+variable "ec2_instance_type" {
+  description = "EC2 instance type for ECS container instances"
+  default     = "t3.large"
+  # t3.large = 2 vCPU / 8 GB — fits all 6 services with 40% headroom
+  # t3.xlarge = 4 vCPU / 16 GB — recommended for production with buffer
+}
+
+variable "ec2_min_instances" {
+  description = "Minimum number of EC2 instances in the ECS ASG"
+  default     = 1
+}
+
+variable "ec2_max_instances" {
+  description = "Maximum number of EC2 instances the ASG can scale to"
+  default     = 3
+}
+
+variable "ec2_desired_instances" {
+  description = "Initial desired count (ASG takes over after first apply)"
+  default     = 2
+}
+
+# ── S3 ─────────────────────────────────────────────────────────────────────
 variable "image_bucket_name" {
-  description = "Must be globally unique. Change if name is taken."
-  default     = "inventoryms-product-images"
+  default = "inventoryms-product-images-prod"
 }
