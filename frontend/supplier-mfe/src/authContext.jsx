@@ -1,9 +1,3 @@
-/**
- * AuthContext shim for MFE remotes.
- * When loaded via Module Federation, the shell provides the real AuthContext
- * through the shared react singleton. This file is only needed for standalone
- * dev mode of this remote app.
- */
 import { createContext, useContext, useState } from 'react'
 
 const AuthContext = createContext(null)
