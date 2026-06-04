@@ -23,9 +23,6 @@ defaults:
     shell: powershell
 
 jobs:
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 1 — detect which services changed
-# ───────────────────────────────────────────────────────────────────────────
   detect-changes:
     name: Detect changed services
     runs-on: self-hosted
@@ -36,7 +33,6 @@ jobs:
       reporting:    ${{ steps.set-flags.outputs.reporting }}
       supplier:     ${{ steps.set-flags.outputs.supplier }}
       frontend:     ${{ steps.set-flags.outputs.frontend }}
-      terraform:    ${{ steps.set-flags.outputs.terraform }}
       shared_lib:   ${{ steps.set-flags.outputs.shared_lib }}
       ecr_base:     ${{ steps.ecr.outputs.ecr_base }}
     steps:
@@ -66,8 +62,6 @@ jobs:
               - 'shared-lib/**'
             frontend:
               - 'frontend/**'
-            terraform:
-              - 'terraform/**'
 
       - name: Set deployment flags
         id: set-flags
@@ -81,7 +75,6 @@ jobs:
             echo "reporting=true"    >> $env:GITHUB_OUTPUT
             echo "supplier=true"     >> $env:GITHUB_OUTPUT
             echo "frontend=true"     >> $env:GITHUB_OUTPUT
-            echo "terraform=true"    >> $env:GITHUB_OUTPUT
             echo "shared_lib=true"   >> $env:GITHUB_OUTPUT
           } else {
             echo "auth=${{ steps.filter.outputs.auth }}"                 >> $env:GITHUB_OUTPUT
@@ -90,7 +83,6 @@ jobs:
             echo "reporting=${{ steps.filter.outputs.reporting }}"       >> $env:GITHUB_OUTPUT
             echo "supplier=${{ steps.filter.outputs.supplier }}"         >> $env:GITHUB_OUTPUT
             echo "frontend=${{ steps.filter.outputs.frontend }}"         >> $env:GITHUB_OUTPUT
-            echo "terraform=${{ steps.filter.outputs.terraform }}"       >> $env:GITHUB_OUTPUT
             echo "shared_lib=${{ steps.filter.outputs.shared_lib }}"     >> $env:GITHUB_OUTPUT
           }
 
@@ -100,10 +92,6 @@ jobs:
           $ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
           echo "ecr_base=$ACCOUNT_ID.dkr.ecr.$env:AWS_REGION.amazonaws.com/inventoryms-prod" >> $env:GITHUB_OUTPUT
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 2 — build shared-lib
-# FIX: setup-java@v4 downloads Java 21 for this job — no machine install needed
-# ───────────────────────────────────────────────────────────────────────────
   build-shared-lib:
     name: Build shared-lib
     needs: detect-changes
@@ -117,25 +105,16 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-
-      # FIX 1 — download Java 21 for this job (runner only has Java 17)
       - uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
+        with: { java-version: '21', distribution: 'temurin' }
       - name: Install shared-lib to local Maven cache
         run: mvn install -pl shared-lib -q -DskipTests
-
       - uses: actions/upload-artifact@v4
         with:
           name: shared-lib-m2
           path: ~/.m2/repository/com/inventory/shared-lib/
           retention-days: 1
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 3 — auth-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-auth:
     name: auth-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -148,41 +127,30 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
-
-      # FIX 1 — Java 21 for Maven compilation
       - uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
+        with: { java-version: '21', distribution: 'temurin' }
       - name: Restore shared-lib
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
         continue-on-error: true
-
+      - name: Install shared-lib locally
+        run: mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl auth-service -q
-
       - name: Authenticate Docker with ECR
         run: |
           $ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
           aws ecr get-login-password --region $env:AWS_REGION | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$env:AWS_REGION.amazonaws.com"
-
       - name: Build and push image
         run: |
           docker build -t "$env:ECR_BASE/auth-service:${{ github.sha }}" -t "$env:ECR_BASE/auth-service:latest" ./auth-service
           docker push "$env:ECR_BASE/auth-service:${{ github.sha }}"
           docker push "$env:ECR_BASE/auth-service:latest"
-
       - name: Force ECS redeploy
         run: aws ecs update-service --cluster $env:ECS_CLUSTER --service inventoryms-prod-auth --force-new-deployment --region $env:AWS_REGION
-
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-auth --region $env:AWS_REGION
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 4 — inventory-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-inventory:
     name: inventory-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -201,6 +169,8 @@ jobs:
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
         continue-on-error: true
+      - name: Install shared-lib locally
+        run: mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl inventory-service -q
       - name: Authenticate Docker with ECR
@@ -217,9 +187,6 @@ jobs:
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-inventory --region $env:AWS_REGION
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 5 — notification-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-notification:
     name: notification-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -238,6 +205,8 @@ jobs:
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
         continue-on-error: true
+      - name: Install shared-lib locally
+        run: mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl notification-service -q
       - name: Authenticate Docker with ECR
@@ -254,9 +223,6 @@ jobs:
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-notification --region $env:AWS_REGION
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 6 — reporting-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-reporting:
     name: reporting-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -275,6 +241,8 @@ jobs:
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
         continue-on-error: true
+      - name: Install shared-lib locally
+        run: mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl reporting-service -q
       - name: Authenticate Docker with ECR
@@ -291,9 +259,6 @@ jobs:
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-reporting --region $env:AWS_REGION
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 7 — supplier-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-supplier:
     name: supplier-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -312,6 +277,8 @@ jobs:
         uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/shared-lib/ }
         continue-on-error: true
+      - name: Install shared-lib locally
+        run: mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl supplier-service -q
       - name: Authenticate Docker with ECR
@@ -328,10 +295,6 @@ jobs:
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-supplier --region $env:AWS_REGION
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 8 — frontend
-# FIX: npm install instead of npm ci (no package-lock.json in MFE folders)
-# ───────────────────────────────────────────────────────────────────────────
   deploy-frontend:
     name: frontend MFEs - ECR - ECS
     needs: detect-changes
@@ -343,82 +306,39 @@ jobs:
       ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
     steps:
       - uses: actions/checkout@v4
-
-      # FIX 3 — use npm install instead of npm ci (no package-lock.json exists)
       - name: Build dashboard-mfe
         working-directory: frontend/dashboard-mfe
         run: npm install; npm run build
-
       - name: Build products-mfe
         working-directory: frontend/products-mfe
         run: npm install; npm run build
-
       - name: Build stock-mfe
         working-directory: frontend/stock-mfe
         run: npm install; npm run build
-
       - name: Build supplier-mfe
         working-directory: frontend/supplier-mfe
         run: npm install; npm run build
-
       - name: Build reporting-mfe
         working-directory: frontend/reporting-mfe
         run: npm install; npm run build
-
       - name: Build shell
         working-directory: frontend/shell
         run: npm install; npm run build
-
       - name: Authenticate Docker with ECR
         run: |
           $ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
           aws ecr get-login-password --region $env:AWS_REGION | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$env:AWS_REGION.amazonaws.com"
-
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
           docker build -t "$env:ECR_BASE/frontend:${{ github.sha }}" -t "$env:ECR_BASE/frontend:latest" .
           docker push "$env:ECR_BASE/frontend:${{ github.sha }}"
           docker push "$env:ECR_BASE/frontend:latest"
-
       - name: Force ECS redeploy
         run: aws ecs update-service --cluster $env:ECS_CLUSTER --service inventoryms-prod-frontend --force-new-deployment --region $env:AWS_REGION
-
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $env:ECS_CLUSTER --services inventoryms-prod-frontend --region $env:AWS_REGION
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 9 — Terraform
-# FIX: quote the var-file argument to prevent PowerShell splitting at =
-# ───────────────────────────────────────────────────────────────────────────
-  terraform:
-    name: Terraform - plan / apply
-    needs: detect-changes
-    if: needs.detect-changes.outputs.terraform == 'true'
-    runs-on: self-hosted
-    defaults:
-      run:
-        working-directory: terraform
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: terraform init
-        run: terraform init
-
-      - name: terraform validate
-        run: terraform validate
-
-      # FIX 2 — quote var-file to prevent PowerShell splitting at = sign
-      - name: terraform plan
-        run: terraform plan "-var-file=terraform.tfvars" -no-color
-
-      - name: terraform apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
-        run: terraform apply "-var-file=terraform.tfvars" -auto-approve
-
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 10 — deployment summary
-# ───────────────────────────────────────────────────────────────────────────
   notify:
     name: Deployment summary
     needs:

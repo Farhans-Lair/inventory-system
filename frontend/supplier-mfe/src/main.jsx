@@ -1,13 +1,16 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-// This entry is only used when running the MFE standalone (npm run dev).
-// When loaded via Module Federation by the shell, the shell provides
-// React, ReactDOM, and routing context.
-const App = React.lazy(() => import('./bootstrap'))
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <React.Suspense fallback={<div>Loading…</div>}>
-      <App />
-    </React.Suspense>
-  </React.StrictMode>
-)
+
+// Standalone entry point — only used when running this MFE directly (npm run dev)
+// When loaded via Module Federation by the shell, this file is not executed
+const root = document.getElementById('root')
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <div style={{ padding: 20, fontFamily: 'Inter, sans-serif' }}>
+        <h2>supplier-mfe — running standalone</h2>
+        <p>This MFE is designed to be consumed by the shell via Module Federation.</p>
+      </div>
+    </React.StrictMode>
+  )
+}
