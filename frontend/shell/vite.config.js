@@ -5,38 +5,31 @@ import { federation } from '@module-federation/vite'
 /**
  * Shell host — consumes each MFE remote.
  *
- * Local dev: each MFE runs its own Vite dev server on its own port.
- *   dashboard-mfe: npm run dev  (port 3001)
- *   products-mfe:  npm run dev  (port 3002)
- *   stock-mfe:     npm run dev  (port 3003)
- *   supplier-mfe:  npm run dev  (port 3004)
- *   reporting-mfe: npm run dev  (port 3005)
- *   shell:         npm run dev  (port 3000)
+ * FIX: vite.config.js runs in Node.js context — import.meta.env is undefined here.
+ *      Use process.env for env vars in config files.
+ *      VITE_* vars are still injected into client code by Vite at build time.
  *
- * Production: each MFE is built with `npm run build` and its dist/
- * is served via its own nginx container or CDN origin. The shell's
- * remoteEntry URLs below become the CDN/ALB paths to each MFE's bundle.
- *
- * The VITE_* environment variables let you override remote URLs without
- * rebuilding the shell (set them in .env or docker-compose environment).
+ * Local dev:     set vars in frontend/shell/.env
+ * CI (GitHub):   defaults to localhost (MFEs built into same nginx image)
+ * Production:    set VITE_*_MFE_URL to ALB paths in ECS task environment
  */
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   plugins: [
     react(),
     federation({
       name: 'shell',
       remotes: {
-        dashboardMfe: `${import.meta.env.VITE_DASHBOARD_MFE_URL || 'http://localhost:3001'}/assets/remoteEntry.js`,
-        productsMfe:  `${import.meta.env.VITE_PRODUCTS_MFE_URL  || 'http://localhost:3002'}/assets/remoteEntry.js`,
-        stockMfe:     `${import.meta.env.VITE_STOCK_MFE_URL     || 'http://localhost:3003'}/assets/remoteEntry.js`,
-        supplierMfe:  `${import.meta.env.VITE_SUPPLIER_MFE_URL  || 'http://localhost:3004'}/assets/remoteEntry.js`,
-        reportingMfe: `${import.meta.env.VITE_REPORTING_MFE_URL || 'http://localhost:3005'}/assets/remoteEntry.js`,
+        dashboardMfe: `${process.env.VITE_DASHBOARD_MFE_URL || 'http://localhost:3001'}/assets/remoteEntry.js`,
+        productsMfe:  `${process.env.VITE_PRODUCTS_MFE_URL  || 'http://localhost:3002'}/assets/remoteEntry.js`,
+        stockMfe:     `${process.env.VITE_STOCK_MFE_URL     || 'http://localhost:3003'}/assets/remoteEntry.js`,
+        supplierMfe:  `${process.env.VITE_SUPPLIER_MFE_URL  || 'http://localhost:3004'}/assets/remoteEntry.js`,
+        reportingMfe: `${process.env.VITE_REPORTING_MFE_URL || 'http://localhost:3005'}/assets/remoteEntry.js`,
       },
       shared: {
-        react:            { singleton: true, requiredVersion: '^18.3.1' },
-        'react-dom':      { singleton: true, requiredVersion: '^18.3.1' },
+        react:              { singleton: true, requiredVersion: '^18.3.1' },
+        'react-dom':        { singleton: true, requiredVersion: '^18.3.1' },
         'react-router-dom': { singleton: true, requiredVersion: '^6.23.1' },
-        axios:            { singleton: true },
+        axios:              { singleton: true },
       },
     }),
   ],
