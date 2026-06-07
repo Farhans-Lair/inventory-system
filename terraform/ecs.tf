@@ -86,7 +86,7 @@ resource "aws_ecs_service" "auth" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.auth.arn
   desired_count                     = 1
-  health_check_grace_period_seconds = 120
+  health_check_grace_period_seconds = 180
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -152,7 +152,7 @@ resource "aws_ecs_service" "inventory" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.inventory.arn
   desired_count                     = 1
-  health_check_grace_period_seconds = 120
+  health_check_grace_period_seconds = 180
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -219,7 +219,7 @@ resource "aws_ecs_service" "notification" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.notification.arn
   desired_count                     = 1
-  health_check_grace_period_seconds = 120
+  health_check_grace_period_seconds = 180
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -281,7 +281,7 @@ resource "aws_ecs_service" "reporting" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.reporting.arn
   desired_count                     = 1
-  health_check_grace_period_seconds = 120
+  health_check_grace_period_seconds = 180
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -343,7 +343,7 @@ resource "aws_ecs_service" "supplier" {
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.supplier.arn
   desired_count                     = 1
-  health_check_grace_period_seconds = 120
+  health_check_grace_period_seconds = 180
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name

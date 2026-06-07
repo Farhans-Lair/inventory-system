@@ -17,6 +17,7 @@ resource "aws_ecr_repository" "services" {
   for_each             = toset(local.ecr_repos)
   name                 = "${local.prefix}/${each.key}"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true   # allows destroy even when images exist
 
   image_scanning_configuration {
     scan_on_push = true   # free vulnerability scanning on every push
