@@ -24,9 +24,6 @@ permissions:
   contents: read
 
 jobs:
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 1 — detect which services changed
-# ───────────────────────────────────────────────────────────────────────────
   detect-changes:
     name: Detect changed services
     runs-on: ubuntu-latest
@@ -97,9 +94,6 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           echo "ecr_base=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/inventoryms-prod" >> $GITHUB_OUTPUT
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 2 — build shared-lib
-# ───────────────────────────────────────────────────────────────────────────
   build-shared-lib:
     name: Build shared-lib
     needs: detect-changes
@@ -123,11 +117,6 @@ jobs:
           path: ~/.m2/repository/com/inventory/
           retention-days: 1
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 3 — auth-service
-# KEY FIX: stage shared-lib artifacts into auth-service/.m2-stage/
-#          so Dockerfile can COPY them without needing project root context
-# ───────────────────────────────────────────────────────────────────────────
   deploy-auth:
     name: auth-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -142,52 +131,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { java-version: '21', distribution: 'temurin' }
-      - name: Restore shared-lib
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/ }
         continue-on-error: true
-      - name: Install root pom and shared-lib
-        run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
+      - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl auth-service -q
-      - name: Stage shared-lib artifacts for Docker
+      - name: Stage shared-lib for Docker
         run: |
           mkdir -p auth-service/.m2-stage
           cp -r ~/.m2/repository/com/inventory/. auth-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" \
-                       -t "${ECR_BASE}/auth-service:latest" \
-                       ./auth-service
+          docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" -t "${ECR_BASE}/auth-service:latest" ./auth-service
           docker push "${ECR_BASE}/auth-service:${{ github.sha }}"
           docker push "${ECR_BASE}/auth-service:latest"
       - name: Force ECS redeploy
-        run: |
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service inventoryms-prod-auth \
-            --force-new-deployment \
-            --region $AWS_REGION || echo "::warning::ECS service not found - run terraform apply first"
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-auth --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
       - name: Wait for stability
-        run: |
-          aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services inventoryms-prod-auth \
-            --region $AWS_REGION || echo "::warning::Service did not stabilise in time"
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-auth --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 4 — inventory-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-inventory:
     name: inventory-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -208,39 +178,27 @@ jobs:
       - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl inventory-service -q
-      - name: Stage shared-lib artifacts for Docker
+      - name: Stage shared-lib for Docker
         run: |
           mkdir -p inventory-service/.m2-stage
           cp -r ~/.m2/repository/com/inventory/. inventory-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" \
-                       -t "${ECR_BASE}/inventory-service:latest" \
-                       ./inventory-service
+          docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" -t "${ECR_BASE}/inventory-service:latest" ./inventory-service
           docker push "${ECR_BASE}/inventory-service:${{ github.sha }}"
           docker push "${ECR_BASE}/inventory-service:latest"
       - name: Force ECS redeploy
-        run: |
-          aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-inventory \
-            --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-inventory --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
       - name: Wait for stability
-        run: |
-          aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-inventory \
-            --region $AWS_REGION || echo "::warning::Service did not stabilise"
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-inventory --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 5 — notification-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-notification:
     name: notification-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -261,39 +219,27 @@ jobs:
       - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl notification-service -q
-      - name: Stage shared-lib artifacts for Docker
+      - name: Stage shared-lib for Docker
         run: |
           mkdir -p notification-service/.m2-stage
           cp -r ~/.m2/repository/com/inventory/. notification-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" \
-                       -t "${ECR_BASE}/notification-service:latest" \
-                       ./notification-service
+          docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" -t "${ECR_BASE}/notification-service:latest" ./notification-service
           docker push "${ECR_BASE}/notification-service:${{ github.sha }}"
           docker push "${ECR_BASE}/notification-service:latest"
       - name: Force ECS redeploy
-        run: |
-          aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-notification \
-            --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-notification --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
       - name: Wait for stability
-        run: |
-          aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-notification \
-            --region $AWS_REGION || echo "::warning::Service did not stabilise"
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-notification --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 6 — reporting-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-reporting:
     name: reporting-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -314,39 +260,27 @@ jobs:
       - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl reporting-service -q
-      - name: Stage shared-lib artifacts for Docker
+      - name: Stage shared-lib for Docker
         run: |
           mkdir -p reporting-service/.m2-stage
           cp -r ~/.m2/repository/com/inventory/. reporting-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" \
-                       -t "${ECR_BASE}/reporting-service:latest" \
-                       ./reporting-service
+          docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" -t "${ECR_BASE}/reporting-service:latest" ./reporting-service
           docker push "${ECR_BASE}/reporting-service:${{ github.sha }}"
           docker push "${ECR_BASE}/reporting-service:latest"
       - name: Force ECS redeploy
-        run: |
-          aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-reporting \
-            --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-reporting --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
       - name: Wait for stability
-        run: |
-          aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-reporting \
-            --region $AWS_REGION || echo "::warning::Service did not stabilise"
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-reporting --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 7 — supplier-service
-# ───────────────────────────────────────────────────────────────────────────
   deploy-supplier:
     name: supplier-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
@@ -367,38 +301,30 @@ jobs:
       - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
       - name: Run tests
         run: mvn test -pl supplier-service -q
-      - name: Stage shared-lib artifacts for Docker
+      - name: Stage shared-lib for Docker
         run: |
           mkdir -p supplier-service/.m2-stage
           cp -r ~/.m2/repository/com/inventory/. supplier-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region:     ${{ env.AWS_REGION }}
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" \
-                       -t "${ECR_BASE}/supplier-service:latest" \
-                       ./supplier-service
+          docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" -t "${ECR_BASE}/supplier-service:latest" ./supplier-service
           docker push "${ECR_BASE}/supplier-service:${{ github.sha }}"
           docker push "${ECR_BASE}/supplier-service:latest"
       - name: Force ECS redeploy
-        run: |
-          aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-supplier \
-            --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-supplier --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
       - name: Wait for stability
-        run: |
-          aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-supplier \
-            --region $AWS_REGION || echo "::warning::Service did not stabilise"
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-supplier --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
 # ───────────────────────────────────────────────────────────────────────────
-# JOB 8 — frontend
+# FRONTEND — builds all MFEs with production base paths, bundles into one
+# nginx image under /mfe/<name>/ subdirectories
 # ───────────────────────────────────────────────────────────────────────────
   deploy-frontend:
     name: frontend MFEs - ECR - ECS
@@ -413,34 +339,63 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
+
+      # Build each MFE — NODE_ENV=production triggers base: '/mfe/<name>/' in vite config
       - name: Build dashboard-mfe
         working-directory: frontend/dashboard-mfe
         run: npm install && npm run build
+
       - name: Build products-mfe
         working-directory: frontend/products-mfe
         run: npm install && npm run build
+
       - name: Build stock-mfe
         working-directory: frontend/stock-mfe
         run: npm install && npm run build
+
       - name: Build supplier-mfe
         working-directory: frontend/supplier-mfe
         run: npm install && npm run build
+
       - name: Build reporting-mfe
         working-directory: frontend/reporting-mfe
         run: npm install && npm run build
+
+      # KEY FIX: stage all MFE dist outputs into shell/mfe-dist/ so
+      # the shell Dockerfile can COPY them into nginx at /mfe/<name>/
+      - name: Stage MFE dist files for Docker
+        run: |
+          mkdir -p frontend/shell/mfe-dist/dashboard
+          mkdir -p frontend/shell/mfe-dist/products
+          mkdir -p frontend/shell/mfe-dist/stock
+          mkdir -p frontend/shell/mfe-dist/supplier
+          mkdir -p frontend/shell/mfe-dist/reporting
+          cp -r frontend/dashboard-mfe/dist/. frontend/shell/mfe-dist/dashboard/
+          cp -r frontend/products-mfe/dist/.  frontend/shell/mfe-dist/products/
+          cp -r frontend/stock-mfe/dist/.     frontend/shell/mfe-dist/stock/
+          cp -r frontend/supplier-mfe/dist/.  frontend/shell/mfe-dist/supplier/
+          cp -r frontend/reporting-mfe/dist/. frontend/shell/mfe-dist/reporting/
+          echo "MFE dist files staged:"
+          ls frontend/shell/mfe-dist/
+
+      # Build shell — vite.config.js sees NODE_ENV=production, uses /mfe/<name> paths
       - name: Build shell
         working-directory: frontend/shell
         run: npm install && npm run build
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region:     ${{ env.AWS_REGION }}
+
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           aws ecr get-login-password --region $AWS_REGION | \
             docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+      # Docker build context is ./frontend/shell which now contains mfe-dist/
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
@@ -448,18 +403,13 @@ jobs:
                        -t "${ECR_BASE}/frontend:latest" .
           docker push "${ECR_BASE}/frontend:${{ github.sha }}"
           docker push "${ECR_BASE}/frontend:latest"
-      - name: Force ECS redeploy
-        run: |
-          aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-frontend \
-            --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
-      - name: Wait for stability
-        run: |
-          aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-frontend \
-            --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
-# ───────────────────────────────────────────────────────────────────────────
-# JOB 9 — summary
-# ───────────────────────────────────────────────────────────────────────────
+      - name: Force ECS redeploy
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-frontend --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-frontend --region $AWS_REGION || echo "::warning::Service did not stabilise"
+
   notify:
     name: Deployment summary
     needs: [deploy-auth, deploy-inventory, deploy-notification, deploy-reporting, deploy-supplier, deploy-frontend]

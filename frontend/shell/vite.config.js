@@ -3,27 +3,22 @@ import react from '@vitejs/plugin-react'
 import { federation } from '@module-federation/vite'
 
 /**
- * Shell host — consumes each MFE remote.
- *
- * FIX: vite.config.js runs in Node.js context — import.meta.env is undefined here.
- *      Use process.env for env vars in config files.
- *      VITE_* vars are still injected into client code by Vite at build time.
- *
- * Local dev:     set vars in frontend/shell/.env
- * CI (GitHub):   defaults to localhost (MFEs built into same nginx image)
- * Production:    set VITE_*_MFE_URL to ALB paths in ECS task environment
+ * Local dev:  MFEs run on ports 3001-3005
+ * Production: all MFEs served from same nginx at /mfe/<name>/
  */
+const isProd = process.env.NODE_ENV === 'production'
+
 export default defineConfig(() => ({
   plugins: [
     react(),
     federation({
       name: 'shell',
       remotes: {
-        dashboardMfe: `${process.env.VITE_DASHBOARD_MFE_URL || 'http://localhost:3001'}/assets/remoteEntry.js`,
-        productsMfe:  `${process.env.VITE_PRODUCTS_MFE_URL  || 'http://localhost:3002'}/assets/remoteEntry.js`,
-        stockMfe:     `${process.env.VITE_STOCK_MFE_URL     || 'http://localhost:3003'}/assets/remoteEntry.js`,
-        supplierMfe:  `${process.env.VITE_SUPPLIER_MFE_URL  || 'http://localhost:3004'}/assets/remoteEntry.js`,
-        reportingMfe: `${process.env.VITE_REPORTING_MFE_URL || 'http://localhost:3005'}/assets/remoteEntry.js`,
+        dashboardMfe: `${process.env.VITE_DASHBOARD_MFE_URL || (isProd ? '/mfe/dashboard' : 'http://localhost:3001')}/assets/remoteEntry.js`,
+        productsMfe:  `${process.env.VITE_PRODUCTS_MFE_URL  || (isProd ? '/mfe/products'  : 'http://localhost:3002')}/assets/remoteEntry.js`,
+        stockMfe:     `${process.env.VITE_STOCK_MFE_URL     || (isProd ? '/mfe/stock'      : 'http://localhost:3003')}/assets/remoteEntry.js`,
+        supplierMfe:  `${process.env.VITE_SUPPLIER_MFE_URL  || (isProd ? '/mfe/supplier'   : 'http://localhost:3004')}/assets/remoteEntry.js`,
+        reportingMfe: `${process.env.VITE_REPORTING_MFE_URL || (isProd ? '/mfe/reporting'  : 'http://localhost:3005')}/assets/remoteEntry.js`,
       },
       shared: {
         react:              { singleton: true, requiredVersion: '^18.3.1' },

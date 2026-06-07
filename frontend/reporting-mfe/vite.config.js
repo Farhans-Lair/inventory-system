@@ -2,7 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { federation } from '@module-federation/vite'
 
+// Production base path — assets load from /mfe/reporting/ when built
+const isProd = process.env.NODE_ENV === 'production'
+
+
 export default defineConfig({
+  base: isProd ? '/mfe/reporting/' : '/',
   plugins: [
     react(),
     federation({
