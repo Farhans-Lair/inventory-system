@@ -28,21 +28,46 @@ resource "aws_iam_role_policy" "github_actions" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["ecr:GetAuthorizationToken","ecr:BatchCheckLayerAvailability","ecr:GetDownloadUrlForLayer","ecr:BatchGetImage","ecr:InitiateLayerUpload","ecr:UploadLayerPart","ecr:CompleteLayerUpload","ecr:PutImage","ecr:DescribeRepositories","ecr:DescribeImages"]
+        Sid    = "ECRAccess"
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage",
+          "ecr:DescribeRepositories",
+          "ecr:DescribeImages"
+        ]
         Resource = "*"
       },
       {
-        Effect   = "Allow"
-        Action   = ["ecs:UpdateService","ecs:DescribeServices","ecs:DescribeTaskDefinition","ecs:RegisterTaskDefinition"]
+        Sid    = "ECSAccess"
+        Effect = "Allow"
+        Action = [
+          "ecs:UpdateService",
+          "ecs:DescribeServices",
+          "ecs:DescribeTaskDefinition",
+          "ecs:RegisterTaskDefinition",
+          "ecs:ListServices",
+          "ecs:DescribeClusters"
+        ]
         Resource = "*"
       },
       {
+        Sid      = "IAMPassRole"
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
-        Resource = [aws_iam_role.ecs_execution.arn, aws_iam_role.ecs_task.arn]
+        Resource = [
+          aws_iam_role.ecs_execution.arn,
+          aws_iam_role.ecs_task.arn
+        ]
       },
       {
+        Sid      = "STSAccess"
         Effect   = "Allow"
         Action   = ["sts:GetCallerIdentity"]
         Resource = "*"
@@ -52,6 +77,5 @@ resource "aws_iam_role_policy" "github_actions" {
 }
 
 output "github_actions_role_arn" {
-  description = "OIDC role ARN — already hardcoded in deploy.yml"
-  value       = aws_iam_role.github_actions.arn
+  value = aws_iam_role.github_actions.arn
 }

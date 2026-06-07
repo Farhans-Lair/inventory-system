@@ -1,25 +1,21 @@
-# Build context: project root (docker build -f auth-service/Dockerfile .)
+# Build context: ./auth-service
+# CI stages shared-lib artifacts into ./auth-service/.m2-stage/ before this build
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 
-# Install root (parent) pom so shared-lib's parent is resolvable
+# Populate local Maven cache with shared-lib + parent pom (staged by CI)
+COPY .m2-stage /root/.m2/repository/com/inventory
+
+# Download all other dependencies
 COPY pom.xml .
-RUN mvn install -N -q
-
-# Install shared-lib into local .m2 cache
-COPY shared-lib ./shared-lib
-RUN mvn install -pl shared-lib -q -DskipTests
-
-# Resolve all auth-service dependencies (cached layer)
-COPY auth-service/pom.xml ./auth-service/pom.xml
-RUN mvn dependency:go-offline -pl auth-service -q
+RUN mvn dependency:go-offline -q
 
 # Compile and package
-COPY auth-service/src ./auth-service/src
-RUN mvn package -pl auth-service -DskipTests -q
+COPY src ./src
+RUN mvn package -DskipTests -q
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build /build/auth-service/target/auth-service-*.jar app.jar
+COPY --from=build /build/target/auth-service-*.jar app.jar
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]
