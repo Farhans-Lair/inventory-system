@@ -1,4 +1,4 @@
-name: InventoryMS Deploy
+﻿name: InventoryMS Deploy
 # cache-bust
 
 on:
