@@ -144,7 +144,9 @@ jobs:
           cp -r ~/.m2/repository/com/inventory/. auth-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -185,7 +187,9 @@ jobs:
           cp -r ~/.m2/repository/com/inventory/. inventory-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -226,7 +230,9 @@ jobs:
           cp -r ~/.m2/repository/com/inventory/. notification-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -267,7 +273,9 @@ jobs:
           cp -r ~/.m2/repository/com/inventory/. reporting-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -308,7 +316,9 @@ jobs:
           cp -r ~/.m2/repository/com/inventory/. supplier-service/.m2-stage/
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: Authenticate Docker with ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
