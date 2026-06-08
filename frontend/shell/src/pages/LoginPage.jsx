@@ -1,17 +1,18 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { authApi } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 
 const s = {
-  wrap:  { minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb' },
-  box:   { background:'#fff', padding:'40px', borderRadius:'12px', border:'1px solid #e5e7eb', width:'100%', maxWidth:'380px' },
-  title: { fontSize:'22px', fontWeight:700, marginBottom:'8px' },
-  sub:   { color:'#6b7280', fontSize:'13px', marginBottom:'24px' },
-  label: { display:'block', fontSize:'13px', fontWeight:500, color:'#374151', marginBottom:'4px' },
-  input: { width:'100%', padding:'10px 12px', border:'1px solid #d1d5db', borderRadius:'8px', fontSize:'14px', boxSizing:'border-box', marginBottom:'14px' },
-  btn:   { width:'100%', padding:'11px', background:'#4f46e5', color:'#fff', border:'none', borderRadius:'8px', fontSize:'14px', fontWeight:600, cursor:'pointer' },
-  err:   { background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'8px', padding:'10px 14px', color:'#991b1b', fontSize:'13px', marginBottom:'14px' },
+  wrap:    { minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb' },
+  box:     { background:'#fff', padding:'40px', borderRadius:'12px', border:'1px solid #e5e7eb', width:'100%', maxWidth:'380px' },
+  title:   { fontSize:'22px', fontWeight:700, marginBottom:'8px' },
+  sub:     { color:'#6b7280', fontSize:'13px', marginBottom:'24px' },
+  label:   { display:'block', fontSize:'13px', fontWeight:500, color:'#374151', marginBottom:'4px' },
+  input:   { width:'100%', padding:'10px 12px', border:'1px solid #d1d5db', borderRadius:'8px', fontSize:'14px', boxSizing:'border-box', marginBottom:'14px' },
+  btn:     { width:'100%', padding:'11px', background:'#4f46e5', color:'#fff', border:'none', borderRadius:'8px', fontSize:'14px', fontWeight:600, cursor:'pointer' },
+  err:     { background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'8px', padding:'10px 14px', color:'#991b1b', fontSize:'13px', marginBottom:'14px' },
+  success: { background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'8px', padding:'10px 14px', color:'#15803d', fontSize:'13px', marginBottom:'14px' },
 }
 
 export default function LoginPage() {
@@ -24,6 +25,10 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false)
   const { login } = useAuth()
   const navigate  = useNavigate()
+  const location  = useLocation()
+
+  // Show a banner when redirected here after successful signup
+  const justRegistered = location.state?.registered === true
 
   async function step1(e) {
     e.preventDefault(); setError(''); setLoading(true)
@@ -50,6 +55,13 @@ export default function LoginPage() {
       <div style={s.box}>
         <div style={s.title}>Sign in</div>
         <div style={s.sub}>{step===1 ? 'Enter your credentials' : 'Enter the code sent to your email'}</div>
+
+        {justRegistered && step===1 && (
+          <div style={s.success}>
+            Account created! Please sign in with your new credentials.
+          </div>
+        )}
+
         {error && <div style={s.err}>{error}</div>}
         {devOtp && <div style={{...s.err, background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e'}}>Dev OTP: <strong>{devOtp}</strong></div>}
 

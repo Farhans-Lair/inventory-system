@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import { authApi } from '../api/client'
 
 const ROLES = [
@@ -16,7 +15,6 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [busy,  setBusy]  = useState(false)
-  const { login }         = useAuth()
   const navigate          = useNavigate()
 
   const inp = { width:'100%', padding:'10px 12px', border:'1px solid var(--border)', borderRadius:'var(--radius)', fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }
@@ -37,10 +35,9 @@ export default function SignupPage() {
   const submitOtp = async e => {
     e.preventDefault(); setError(''); setBusy(true)
     try {
-      const { data } = await authApi.verifySignup({ email, otp })
-      // data = { userId, email, fullName, role } — tokens are in HttpOnly cookies
-      login(data)
-      navigate('/')
+      await authApi.verifySignup({ email, otp })
+      // Account created — send user to login page to sign in
+      navigate('/login', { state: { registered: true } })
     } catch(err) { setError(err.response?.data?.message || 'Invalid or expired code.') }
     finally { setBusy(false) }
   }
