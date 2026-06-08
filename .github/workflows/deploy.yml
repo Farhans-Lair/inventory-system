@@ -1,0 +1,431 @@
+name: InventoryMS Deploy
+# cache-bust
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      deploy_all:
+        description: 'Deploy all services (first time / force redeploy)'
+        required: true
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+env:
+  AWS_REGION:   ap-south-1
+  ECS_CLUSTER:  inventoryms-prod-cluster
+  AWS_ROLE_ARN: arn:aws:iam::453551850734:role/inventoryms-github-actions
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect-changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      auth:         ${{ steps.set-flags.outputs.auth }}
+      inventory:    ${{ steps.set-flags.outputs.inventory }}
+      notification: ${{ steps.set-flags.outputs.notification }}
+      reporting:    ${{ steps.set-flags.outputs.reporting }}
+      supplier:     ${{ steps.set-flags.outputs.supplier }}
+      frontend:     ${{ steps.set-flags.outputs.frontend }}
+      shared_lib:   ${{ steps.set-flags.outputs.shared_lib }}
+      ecr_base:     ${{ steps.ecr.outputs.ecr_base }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared_lib:
+              - 'shared-lib/**'
+              - 'pom.xml'
+            auth:
+              - 'auth-service/**'
+              - 'shared-lib/**'
+            inventory:
+              - 'inventory-service/**'
+              - 'shared-lib/**'
+            notification:
+              - 'notification-service/**'
+              - 'shared-lib/**'
+            reporting:
+              - 'reporting-service/**'
+              - 'shared-lib/**'
+            supplier:
+              - 'supplier-service/**'
+              - 'shared-lib/**'
+            frontend:
+              - 'frontend/**'
+      - name: Set deployment flags
+        id: set-flags
+        run: |
+          FORCE="${{ github.event_name == 'workflow_dispatch' && inputs.deploy_all == 'true' }}"
+          if [ "$FORCE" = "true" ]; then
+            echo "auth=true"         >> $GITHUB_OUTPUT
+            echo "inventory=true"    >> $GITHUB_OUTPUT
+            echo "notification=true" >> $GITHUB_OUTPUT
+            echo "reporting=true"    >> $GITHUB_OUTPUT
+            echo "supplier=true"     >> $GITHUB_OUTPUT
+            echo "frontend=true"     >> $GITHUB_OUTPUT
+            echo "shared_lib=true"   >> $GITHUB_OUTPUT
+          else
+            echo "auth=${{ steps.filter.outputs.auth }}"                 >> $GITHUB_OUTPUT
+            echo "inventory=${{ steps.filter.outputs.inventory }}"       >> $GITHUB_OUTPUT
+            echo "notification=${{ steps.filter.outputs.notification }}" >> $GITHUB_OUTPUT
+            echo "reporting=${{ steps.filter.outputs.reporting }}"       >> $GITHUB_OUTPUT
+            echo "supplier=${{ steps.filter.outputs.supplier }}"         >> $GITHUB_OUTPUT
+            echo "frontend=${{ steps.filter.outputs.frontend }}"         >> $GITHUB_OUTPUT
+            echo "shared_lib=${{ steps.filter.outputs.shared_lib }}"     >> $GITHUB_OUTPUT
+          fi
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+      - name: Resolve ECR base URL
+        id: ecr
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "ecr_base=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/inventoryms-prod" >> $GITHUB_OUTPUT
+
+  build-shared-lib:
+    name: Build shared-lib
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.shared_lib   == 'true' ||
+      needs.detect-changes.outputs.auth         == 'true' ||
+      needs.detect-changes.outputs.inventory    == 'true' ||
+      needs.detect-changes.outputs.notification == 'true' ||
+      needs.detect-changes.outputs.reporting    == 'true' ||
+      needs.detect-changes.outputs.supplier     == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - run: mvn install -N -q
+      - run: mvn install -pl shared-lib -q -DskipTests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shared-lib-m2
+          path: ~/.m2/repository/com/inventory/
+          retention-days: 1
+
+  deploy-auth:
+    name: auth-service - Test - ECR - ECS
+    needs: [detect-changes, build-shared-lib]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.auth == 'true' &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - uses: actions/download-artifact@v4
+        with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/ }
+        continue-on-error: true
+      - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
+      - name: Run tests
+        run: mvn test -pl auth-service -q
+      - name: Stage shared-lib for Docker
+        run: |
+          mkdir -p auth-service/.m2-stage
+          cp -r ~/.m2/repository/com/inventory/. auth-service/.m2-stage/
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+      - name: Authenticate Docker with ECR
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Build and push image
+        run: |
+          docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" -t "${ECR_BASE}/auth-service:latest" ./auth-service
+          docker push "${ECR_BASE}/auth-service:${{ github.sha }}"
+          docker push "${ECR_BASE}/auth-service:latest"
+      - name: Force ECS redeploy
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-auth --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-auth --region $AWS_REGION || echo "::warning::Service did not stabilise"
+
+  deploy-inventory:
+    name: inventory-service - Test - ECR - ECS
+    needs: [detect-changes, build-shared-lib]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.inventory == 'true' &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - uses: actions/download-artifact@v4
+        with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/ }
+        continue-on-error: true
+      - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
+      - name: Run tests
+        run: mvn test -pl inventory-service -q
+      - name: Stage shared-lib for Docker
+        run: |
+          mkdir -p inventory-service/.m2-stage
+          cp -r ~/.m2/repository/com/inventory/. inventory-service/.m2-stage/
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+      - name: Authenticate Docker with ECR
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Build and push image
+        run: |
+          docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" -t "${ECR_BASE}/inventory-service:latest" ./inventory-service
+          docker push "${ECR_BASE}/inventory-service:${{ github.sha }}"
+          docker push "${ECR_BASE}/inventory-service:latest"
+      - name: Force ECS redeploy
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-inventory --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-inventory --region $AWS_REGION || echo "::warning::Service did not stabilise"
+
+  deploy-notification:
+    name: notification-service - Test - ECR - ECS
+    needs: [detect-changes, build-shared-lib]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.notification == 'true' &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - uses: actions/download-artifact@v4
+        with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/ }
+        continue-on-error: true
+      - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
+      - name: Run tests
+        run: mvn test -pl notification-service -q
+      - name: Stage shared-lib for Docker
+        run: |
+          mkdir -p notification-service/.m2-stage
+          cp -r ~/.m2/repository/com/inventory/. notification-service/.m2-stage/
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+      - name: Authenticate Docker with ECR
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Build and push image
+        run: |
+          docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" -t "${ECR_BASE}/notification-service:latest" ./notification-service
+          docker push "${ECR_BASE}/notification-service:${{ github.sha }}"
+          docker push "${ECR_BASE}/notification-service:latest"
+      - name: Force ECS redeploy
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-notification --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-notification --region $AWS_REGION || echo "::warning::Service did not stabilise"
+
+  deploy-reporting:
+    name: reporting-service - Test - ECR - ECS
+    needs: [detect-changes, build-shared-lib]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.reporting == 'true' &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - uses: actions/download-artifact@v4
+        with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/ }
+        continue-on-error: true
+      - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
+      - name: Run tests
+        run: mvn test -pl reporting-service -q
+      - name: Stage shared-lib for Docker
+        run: |
+          mkdir -p reporting-service/.m2-stage
+          cp -r ~/.m2/repository/com/inventory/. reporting-service/.m2-stage/
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+      - name: Authenticate Docker with ECR
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Build and push image
+        run: |
+          docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" -t "${ECR_BASE}/reporting-service:latest" ./reporting-service
+          docker push "${ECR_BASE}/reporting-service:${{ github.sha }}"
+          docker push "${ECR_BASE}/reporting-service:latest"
+      - name: Force ECS redeploy
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-reporting --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-reporting --region $AWS_REGION || echo "::warning::Service did not stabilise"
+
+  deploy-supplier:
+    name: supplier-service - Test - ECR - ECS
+    needs: [detect-changes, build-shared-lib]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.supplier == 'true' &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '21', distribution: 'temurin' }
+      - uses: actions/download-artifact@v4
+        with: { name: shared-lib-m2, path: ~/.m2/repository/com/inventory/ }
+        continue-on-error: true
+      - run: mvn install -N -q && mvn install -pl shared-lib -q -DskipTests
+      - name: Run tests
+        run: mvn test -pl supplier-service -q
+      - name: Stage shared-lib for Docker
+        run: |
+          mkdir -p supplier-service/.m2-stage
+          cp -r ~/.m2/repository/com/inventory/. supplier-service/.m2-stage/
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: ${{ env.AWS_ROLE_ARN }}, aws-region: ${{ env.AWS_REGION }} }
+      - name: Authenticate Docker with ECR
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Build and push image
+        run: |
+          docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" -t "${ECR_BASE}/supplier-service:latest" ./supplier-service
+          docker push "${ECR_BASE}/supplier-service:${{ github.sha }}"
+          docker push "${ECR_BASE}/supplier-service:latest"
+      - name: Force ECS redeploy
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-supplier --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-supplier --region $AWS_REGION || echo "::warning::Service did not stabilise"
+
+# ───────────────────────────────────────────────────────────────────────────
+# FRONTEND — builds all MFEs with production base paths, bundles into one
+# nginx image under /mfe/<name>/ subdirectories
+# ───────────────────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: frontend MFEs - ECR - ECS
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.frontend == 'true' &&
+      (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      ECR_BASE: ${{ needs.detect-changes.outputs.ecr_base }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      # Build each MFE — NODE_ENV=production triggers base: '/mfe/<name>/' in vite config
+      - name: Build dashboard-mfe
+        working-directory: frontend/dashboard-mfe
+        run: npm install && npm run build
+
+      - name: Build products-mfe
+        working-directory: frontend/products-mfe
+        run: npm install && npm run build
+
+      - name: Build stock-mfe
+        working-directory: frontend/stock-mfe
+        run: npm install && npm run build
+
+      - name: Build supplier-mfe
+        working-directory: frontend/supplier-mfe
+        run: npm install && npm run build
+
+      - name: Build reporting-mfe
+        working-directory: frontend/reporting-mfe
+        run: npm install && npm run build
+
+      # KEY FIX: stage all MFE dist outputs into shell/mfe-dist/ so
+      # the shell Dockerfile can COPY them into nginx at /mfe/<name>/
+      - name: Stage MFE dist files for Docker
+        run: |
+          mkdir -p frontend/shell/mfe-dist/dashboard
+          mkdir -p frontend/shell/mfe-dist/products
+          mkdir -p frontend/shell/mfe-dist/stock
+          mkdir -p frontend/shell/mfe-dist/supplier
+          mkdir -p frontend/shell/mfe-dist/reporting
+          cp -r frontend/dashboard-mfe/dist/. frontend/shell/mfe-dist/dashboard/
+          cp -r frontend/products-mfe/dist/.  frontend/shell/mfe-dist/products/
+          cp -r frontend/stock-mfe/dist/.     frontend/shell/mfe-dist/stock/
+          cp -r frontend/supplier-mfe/dist/.  frontend/shell/mfe-dist/supplier/
+          cp -r frontend/reporting-mfe/dist/. frontend/shell/mfe-dist/reporting/
+          echo "MFE dist files staged:"
+          ls frontend/shell/mfe-dist/
+
+      # Build shell — vite.config.js sees NODE_ENV=production, uses /mfe/<name> paths
+      - name: Build shell
+        working-directory: frontend/shell
+        run: npm install && npm run build
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region:     ${{ env.AWS_REGION }}
+
+      - name: Authenticate Docker with ECR
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+      # Docker build context is ./frontend/shell which now contains mfe-dist/
+      - name: Build and push shell image
+        working-directory: frontend/shell
+        run: |
+          docker build -t "${ECR_BASE}/frontend:${{ github.sha }}" \
+                       -t "${ECR_BASE}/frontend:latest" .
+          docker push "${ECR_BASE}/frontend:${{ github.sha }}"
+          docker push "${ECR_BASE}/frontend:latest"
+
+      - name: Force ECS redeploy
+        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-frontend --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-frontend --region $AWS_REGION || echo "::warning::Service did not stabilise"
+
+  notify:
+    name: Deployment summary
+    needs: [deploy-auth, deploy-inventory, deploy-notification, deploy-reporting, deploy-supplier, deploy-frontend]
+    if: always() && (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write summary
+        run: |
+          echo "## InventoryMS Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| auth-service         | ${{ needs.deploy-auth.result }} |"         >> $GITHUB_STEP_SUMMARY
+          echo "| inventory-service    | ${{ needs.deploy-inventory.result }} |"    >> $GITHUB_STEP_SUMMARY
+          echo "| notification-service | ${{ needs.deploy-notification.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| reporting-service    | ${{ needs.deploy-reporting.result }} |"    >> $GITHUB_STEP_SUMMARY
+          echo "| supplier-service     | ${{ needs.deploy-supplier.result }} |"     >> $GITHUB_STEP_SUMMARY
+          echo "| frontend             | ${{ needs.deploy-frontend.result }} |"     >> $GITHUB_STEP_SUMMARY
+          echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
