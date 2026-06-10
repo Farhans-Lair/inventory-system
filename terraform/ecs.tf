@@ -133,6 +133,10 @@ resource "aws_ecs_task_definition" "inventory" {
       { name = "MINIO_BUCKET",      value = aws_s3_bucket.images.id },
       { name = "MINIO_ACCESS_KEY",  value = "" },
       { name = "MINIO_SECRET_KEY",  value = "" },
+      # Notification service URL — must go through the ALB on ECS (no Docker Compose DNS on AWS).
+      # StockService uses this to send low-stock and overstock alerts.
+      { name = "NOTIFICATION_SERVICE_URL",
+        value = "http://${aws_lb.main.dns_name}" },
       { name = "spring.datasource.url",
         value = "jdbc:mysql://${aws_db_instance.inventory.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]

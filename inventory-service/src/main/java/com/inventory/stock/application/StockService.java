@@ -5,6 +5,7 @@ import com.inventory.stock.domain.model.*;
 import com.inventory.stock.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -25,6 +26,24 @@ public class StockService {
     private final LocationRepository         locationRepository;
     private final StockReservationRepository reservationRepository;
     private final BatchLotRepository         batchLotRepository;
+
+    /**
+     * URL of the notification service.
+     *
+     * On AWS ECS there is no Docker Compose DNS — services cannot reach each
+     * other by container name.  All inter-service traffic must go through the
+     * ALB, which routes /api/notifications* to the notification-service target
+     * group (priority 30 in alb.tf).
+     *
+     * Set NOTIFICATION_SERVICE_URL in the ECS task definition environment to
+     * the ALB DNS name, e.g.:
+     *   http://inventoryms-prod-alb-<id>.ap-south-1.elb.amazonaws.com
+     *
+     * Locally (docker-compose) this defaults to http://notification-service:8083
+     * which still works because Docker Compose provides that DNS name.
+     */
+    @Value("${notification.service.url:http://notification-service:8083}")
+    private String notificationServiceUrl;
 
     // ── Dashboard summary ──────────────────────────────────────────────────
     public StockSummaryDto getSummary() {
@@ -176,7 +195,6 @@ public class StockService {
         long days = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(oldest.toLocalDate(), LocalDate.now()) + 1);
         double avgDaily = totalQty / days;
 
-        // Weekly breakdown for trend analysis
         Map<String, Integer> weeklyBreakdown = new LinkedHashMap<>();
         outbound.forEach(m -> {
             String week = "W" + m.getTimestamp().toLocalDate().get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
@@ -191,7 +209,6 @@ public class StockService {
         int daysLeft = avgDaily > 0 ? (int)(availableStock / avgDaily) : 9999;
         int forecast30 = (int) Math.ceil(avgDaily * 30);
 
-        // Confidence based on data volume
         String confidence = outbound.size() >= 30 ? "HIGH" : outbound.size() >= 10 ? "MEDIUM" : "LOW";
 
         return Map.of(
@@ -246,7 +263,7 @@ public class StockService {
             payload.put("locationName",    l.getName());
             payload.put("currentQuantity", sl.getQuantity());
             payload.put("threshold",       sl.getMaxQuantity());
-            rt.postForEntity("http://notification-service:8083/api/notifications/send", payload, Void.class);
+            rt.postForEntity(notificationServiceUrl + "/api/notifications/send", payload, Void.class);
         } catch (Exception e) { log.warn("Overstock alert publish failed: {}", e.getMessage()); }
     }
 
@@ -262,7 +279,7 @@ public class StockService {
             payload.put("locationName",    l.getName());
             payload.put("currentQuantity", sl.getQuantity());
             payload.put("threshold",       sl.getMinQuantity());
-            rt.postForEntity("http://notification-service:8083/api/notifications/send", payload, Void.class);
+            rt.postForEntity(notificationServiceUrl + "/api/notifications/send", payload, Void.class);
         } catch (Exception e) { log.warn("Low-stock alert publish failed: {}", e.getMessage()); }
     }
 

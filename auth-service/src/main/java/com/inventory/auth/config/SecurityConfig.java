@@ -43,6 +43,7 @@ public class SecurityConfig {
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password",
                     "/api/auth/refresh",
+                    "/api/auth/logout",   // Must be permitAll — called when token is expired or missing
                     "/actuator/health",
                     "/actuator/info"
                 ).permitAll()
