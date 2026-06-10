@@ -5,6 +5,15 @@ import { federation } from '@module-federation/vite'
 /**
  * Local dev:  MFEs run on ports 3001-3005
  * Production: all MFEs served from same nginx at /mfe/<name>/
+ *
+ * Remote URL format: <base>/remoteEntry.js  (NO /assets/ prefix)
+ *
+ * @module-federation/vite outputs remoteEntry.js at the ROOT of dist/,
+ * not inside dist/assets/. So the correct path is:
+ *   prod: /mfe/dashboard/remoteEntry.js
+ *   dev:  http://localhost:3001/remoteEntry.js
+ *
+ * Using /assets/remoteEntry.js was the root cause of all MFE 404 errors.
  */
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -13,16 +22,13 @@ export default defineConfig(() => ({
     react(),
     federation({
       name: 'shell',
-      // dts: false — this project is pure JSX, no TypeScript.
-      // Without this, @module-federation/vite ^1.2+ tries to read tsconfig.json
-      // and throws "Unable to compile federated types" in CI because no tsconfig exists.
       dts: false,
       remotes: {
-        dashboardMfe: `${process.env.VITE_DASHBOARD_MFE_URL || (isProd ? '/mfe/dashboard' : 'http://localhost:3001')}/assets/remoteEntry.js`,
-        productsMfe:  `${process.env.VITE_PRODUCTS_MFE_URL  || (isProd ? '/mfe/products'  : 'http://localhost:3002')}/assets/remoteEntry.js`,
-        stockMfe:     `${process.env.VITE_STOCK_MFE_URL     || (isProd ? '/mfe/stock'      : 'http://localhost:3003')}/assets/remoteEntry.js`,
-        supplierMfe:  `${process.env.VITE_SUPPLIER_MFE_URL  || (isProd ? '/mfe/supplier'   : 'http://localhost:3004')}/assets/remoteEntry.js`,
-        reportingMfe: `${process.env.VITE_REPORTING_MFE_URL || (isProd ? '/mfe/reporting'  : 'http://localhost:3005')}/assets/remoteEntry.js`,
+        dashboardMfe: `${process.env.VITE_DASHBOARD_MFE_URL || (isProd ? '/mfe/dashboard' : 'http://localhost:3001')}/remoteEntry.js`,
+        productsMfe:  `${process.env.VITE_PRODUCTS_MFE_URL  || (isProd ? '/mfe/products'  : 'http://localhost:3002')}/remoteEntry.js`,
+        stockMfe:     `${process.env.VITE_STOCK_MFE_URL     || (isProd ? '/mfe/stock'      : 'http://localhost:3003')}/remoteEntry.js`,
+        supplierMfe:  `${process.env.VITE_SUPPLIER_MFE_URL  || (isProd ? '/mfe/supplier'   : 'http://localhost:3004')}/remoteEntry.js`,
+        reportingMfe: `${process.env.VITE_REPORTING_MFE_URL || (isProd ? '/mfe/reporting'  : 'http://localhost:3005')}/remoteEntry.js`,
       },
       shared: {
         react:              { singleton: true, requiredVersion: '^18.3.1' },
