@@ -2,9 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { federation } from '@module-federation/vite'
 
-// Production base path — assets load from /mfe/dashboard/ when built
 const isProd = process.env.NODE_ENV === 'production'
-
 
 export default defineConfig({
   base: isProd ? '/mfe/dashboard/' : '/',
@@ -13,6 +11,7 @@ export default defineConfig({
     federation({
       name: 'dashboard-mfe',
       filename: 'remoteEntry.js',
+      dts: false,
       exposes: { './DashboardPage': './src/DashboardPage.jsx' },
       shared: {
         react:              { singleton: true, requiredVersion: '^18.3.1' },
@@ -24,7 +23,6 @@ export default defineConfig({
   ],
   server: {
     port: 3001,
-    // Proxy API calls — same as shell so each MFE can run standalone
     proxy: {
       '/api/auth':            { target: 'http://localhost:8081', changeOrigin: true },
       '/api/users':           { target: 'http://localhost:8081', changeOrigin: true },

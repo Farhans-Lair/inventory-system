@@ -4,6 +4,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+
+# NODE_ENV=production must be set here so vite.config.js evaluates isProd=true
+# and bakes the correct remote URLs (/mfe/<name>/assets/remoteEntry.js) into
+# the shell bundle instead of the localhost:3001-3005 dev URLs.
+# Without this, all MFE remoteEntry.js requests go to localhost and return 404.
+ENV NODE_ENV=production
 RUN npm run build
 
 FROM nginx:alpine

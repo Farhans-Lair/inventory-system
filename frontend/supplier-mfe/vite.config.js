@@ -2,9 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { federation } from '@module-federation/vite'
 
-// Production base path — assets load from /mfe/supplier/ when built
 const isProd = process.env.NODE_ENV === 'production'
-
 
 export default defineConfig({
   base: isProd ? '/mfe/supplier/' : '/',
@@ -13,7 +11,11 @@ export default defineConfig({
     federation({
       name: 'supplier-mfe',
       filename: 'remoteEntry.js',
-      exposes: { './SuppliersPage': './src/SuppliersPage.jsx', './PurchaseOrdersPage': './src/PurchaseOrdersPage.jsx' },
+      dts: false,
+      exposes: {
+        './SuppliersPage':      './src/SuppliersPage.jsx',
+        './PurchaseOrdersPage': './src/PurchaseOrdersPage.jsx',
+      },
       shared: {
         react:              { singleton: true, requiredVersion: '^18.3.1' },
         'react-dom':        { singleton: true, requiredVersion: '^18.3.1' },
@@ -24,7 +26,6 @@ export default defineConfig({
   ],
   server: {
     port: 3004,
-    // Proxy API calls — same as shell so each MFE can run standalone
     proxy: {
       '/api/auth':            { target: 'http://localhost:8081', changeOrigin: true },
       '/api/users':           { target: 'http://localhost:8081', changeOrigin: true },

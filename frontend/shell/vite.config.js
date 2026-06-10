@@ -13,6 +13,10 @@ export default defineConfig(() => ({
     react(),
     federation({
       name: 'shell',
+      // dts: false — this project is pure JSX, no TypeScript.
+      // Without this, @module-federation/vite ^1.2+ tries to read tsconfig.json
+      // and throws "Unable to compile federated types" in CI because no tsconfig exists.
+      dts: false,
       remotes: {
         dashboardMfe: `${process.env.VITE_DASHBOARD_MFE_URL || (isProd ? '/mfe/dashboard' : 'http://localhost:3001')}/assets/remoteEntry.js`,
         productsMfe:  `${process.env.VITE_PRODUCTS_MFE_URL  || (isProd ? '/mfe/products'  : 'http://localhost:3002')}/assets/remoteEntry.js`,
@@ -45,5 +49,3 @@ export default defineConfig(() => ({
     },
   },
 }))
-
-
