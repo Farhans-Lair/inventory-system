@@ -1,0 +1,11 @@
+# Exclude node_modules from Docker build context.
+# Without this, npm ci creates node_modules/ in CI before docker build runs,
+# causing 200-400MB to be sent to the Docker daemon unnecessarily.
+# The Dockerfile runs its own npm ci inside the build stage anyway.
+node_modules
+
+# Exclude the CI-built shell dist - Docker rebuilds it internally.
+dist
+
+# Do NOT exclude mfe-dist/ - the Dockerfile needs it to COPY MFE assets.
+# Do NOT exclude package-lock.json - npm ci needs it.
