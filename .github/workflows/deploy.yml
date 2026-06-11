@@ -356,31 +356,31 @@ jobs:
         working-directory: frontend/dashboard-mfe
         env:
           NODE_ENV: production
-        run: npm install --include=dev && npm run build
+        run: npm ci && npm run build
 
       - name: Build products-mfe
         working-directory: frontend/products-mfe
         env:
           NODE_ENV: production
-        run: npm install --include=dev && npm run build
+        run: npm ci && npm run build
 
       - name: Build stock-mfe
         working-directory: frontend/stock-mfe
         env:
           NODE_ENV: production
-        run: npm install --include=dev && npm run build
+        run: npm ci && npm run build
 
       - name: Build supplier-mfe
         working-directory: frontend/supplier-mfe
         env:
           NODE_ENV: production
-        run: npm install --include=dev && npm run build
+        run: npm ci && npm run build
 
       - name: Build reporting-mfe
         working-directory: frontend/reporting-mfe
         env:
           NODE_ENV: production
-        run: npm install --include=dev && npm run build
+        run: npm ci && npm run build
 
       # KEY FIX: stage all MFE dist outputs into shell/mfe-dist/ so
       # the shell Dockerfile can COPY them into nginx at /mfe/<name>/
@@ -404,7 +404,7 @@ jobs:
         working-directory: frontend/shell
         env:
           NODE_ENV: production
-        run: npm install --include=dev && npm run build
+        run: npm ci && npm run build
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
