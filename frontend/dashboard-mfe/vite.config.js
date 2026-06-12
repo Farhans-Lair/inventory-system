@@ -37,5 +37,4 @@ export default defineConfig({
       '/api/purchase-orders': { target: 'http://localhost:8085', changeOrigin: true },
     },
   },
-  build: { target: 'esnext' },
 })
