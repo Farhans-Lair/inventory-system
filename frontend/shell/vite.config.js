@@ -7,13 +7,7 @@ import { federation } from '@module-federation/vite'
  * Production: all MFEs served from same nginx at /mfe/<name>/
  *
  * Remote URL format: <base>/remoteEntry.js  (NO /assets/ prefix)
- *
- * @module-federation/vite outputs remoteEntry.js at the ROOT of dist/,
- * not inside dist/assets/. So the correct path is:
- *   prod: /mfe/dashboard/remoteEntry.js
- *   dev:  http://localhost:3001/remoteEntry.js
- *
- * Using /assets/remoteEntry.js was the root cause of all MFE 404 errors.
+ * @module-federation/vite outputs remoteEntry.js at the ROOT of dist/.
  */
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -38,6 +32,9 @@ export default defineConfig(() => ({
       },
     }),
   ],
+  // esnext target is required — @module-federation/vite generates code that uses
+  // top-level await, which is not supported in the default es2020 target.
+  build: { target: 'esnext' },
   server: {
     port: 3000,
     proxy: {
