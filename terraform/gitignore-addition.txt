@@ -1,8 +1,0 @@
-# Add these lines to your root .gitignore if not already present:
-
-# Terraform secrets — never commit
-terraform/terraform.tfvars
-terraform/.terraform/
-terraform/tfplan
-terraform/*.tfstate
-terraform/*.tfstate.backup
