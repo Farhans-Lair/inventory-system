@@ -351,6 +351,16 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
 
+      - name: Verify all MFE builds pass before proceeding
+        run: |
+          for dir in frontend/dashboard-mfe frontend/products-mfe frontend/stock-mfe frontend/supplier-mfe frontend/reporting-mfe frontend/shell; do
+            echo "=== Smoke-checking $dir ==="
+            cd $GITHUB_WORKSPACE/$dir
+            npm ci && npm run build
+            echo "=== $dir OK ==="
+          done
+
+
       # Build each MFE — Vite auto-sets NODE_ENV=production during vite build
       - name: Build dashboard-mfe
         working-directory: frontend/dashboard-mfe
