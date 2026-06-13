@@ -1,6 +1,17 @@
 import { createContext, useContext, useState } from 'react'
 
-const AuthContext = createContext(null)
+// Safe default context value prevents "Cannot destructure property of null" errors
+// when a page component is loaded via Module Federation without being explicitly
+// wrapped in AuthProvider. useAuth() returns safe defaults instead of null.
+const defaultContext = {
+  user:          null,
+  isAdmin:       false,
+  isManager:     false,
+  isStakeholder: false,
+  canWrite:      false,
+}
+
+const AuthContext = createContext(defaultContext)
 
 export function AuthProvider({ children }) {
   const stored = localStorage.getItem('user')
