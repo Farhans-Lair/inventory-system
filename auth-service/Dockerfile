@@ -18,4 +18,4 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /build/target/auth-service-*.jar app.jar
 EXPOSE 8081
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java",   "-XX:+UseContainerSupport",   "-XX:MaxRAMPercentage=75.0",   "-XX:+UseG1GC",   "-XX:+ExitOnOutOfMemoryError",   "-jar", "app.jar"]

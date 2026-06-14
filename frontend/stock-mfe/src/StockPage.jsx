@@ -21,9 +21,9 @@ export default function StockPage() {
   const { canWrite } = useAuth()
 
   const load = () => {
-    inventoryApi.getAllLevels().then(r => setLevels(r.data))
-    inventoryApi.getProducts().then(r => setProducts(r.data))
-    inventoryApi.getLocations().then(r => setLocations(r.data))
+    inventoryApi.getAllLevels().then(r => setLevels(r.data)).catch(() => {})
+    inventoryApi.getProducts().then(r => setProducts(r.data)).catch(() => {})
+    inventoryApi.getLocations().then(r => setLocations(r.data)).catch(() => {})
   }
   useEffect(() => { load() }, [])
 

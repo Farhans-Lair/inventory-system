@@ -13,8 +13,8 @@ export default function PurchaseOrdersPage() {
   const [show,      setShow]      = useState(false)
   const [form,      setForm]      = useState({ supplierId:'', notes:'', expectedDeliveryDate:'', lines:[{productSku:'',productName:'',productId:'',orderedQuantity:1,unitPrice:''}] })
 
-  const load = () => supplierApi.getPurchaseOrders().then(r=>setPos(r.data))
-  useEffect(()=>{ load(); supplierApi.getSuppliers().then(r=>setSuppliers(r.data)) },[])
+  const load = () => supplierApi.getPurchaseOrders().then(r=>setPos(r.data)).catch(() => {})
+  useEffect(()=>{ load(); supplierApi.getSuppliers().then(r=>setSuppliers(r.data)).catch(()=>{}) },[])
 
   const save = async e => {
     e.preventDefault()

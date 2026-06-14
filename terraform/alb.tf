@@ -35,10 +35,12 @@ resource "aws_lb_target_group" "auth" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path                = "/actuator/health"
+    path                = "/actuator/health/readiness"
     healthy_threshold   = 2
     unhealthy_threshold = 3
     interval            = 30
+    timeout             = 10
+    matcher             = "200"
   }
 }
 
@@ -49,10 +51,12 @@ resource "aws_lb_target_group" "inventory" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path                = "/actuator/health"
+    path                = "/actuator/health/readiness"
     healthy_threshold   = 2
     unhealthy_threshold = 3
     interval            = 30
+    timeout             = 10
+    matcher             = "200"
   }
 }
 
@@ -63,10 +67,12 @@ resource "aws_lb_target_group" "notification" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path                = "/actuator/health"
+    path                = "/actuator/health/readiness"
     healthy_threshold   = 2
     unhealthy_threshold = 3
     interval            = 30
+    timeout             = 10
+    matcher             = "200"
   }
 }
 
@@ -77,10 +83,12 @@ resource "aws_lb_target_group" "reporting" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path                = "/actuator/health"
+    path                = "/actuator/health/readiness"
     healthy_threshold   = 2
     unhealthy_threshold = 3
     interval            = 30
+    timeout             = 10
+    matcher             = "200"
   }
 }
 
@@ -91,10 +99,12 @@ resource "aws_lb_target_group" "supplier" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
   health_check {
-    path                = "/actuator/health"
+    path                = "/actuator/health/readiness"
     healthy_threshold   = 2
     unhealthy_threshold = 3
     interval            = 30
+    timeout             = 10
+    matcher             = "200"
   }
 }
 

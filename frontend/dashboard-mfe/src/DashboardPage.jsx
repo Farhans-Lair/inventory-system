@@ -24,9 +24,9 @@ export default function DashboardPage() {
   const [trend,     setTrend]     = useState([])
 
   useEffect(() => {
-    inventoryApi.getSummary().then(r => setSummary(r.data))
-    inventoryApi.getLowStock().then(r => setLowStock(r.data))
-    inventoryApi.getRecentMovements().then(r => setMovements(r.data))
+    inventoryApi.getSummary().then(r => setSummary(r.data)).catch(() => {})
+    inventoryApi.getLowStock().then(r => setLowStock(r.data)).catch(() => {})
+    inventoryApi.getRecentMovements().then(r => setMovements(r.data)).catch(() => {})
     reportingApi.getTrend(14).then(r => {
       // Pivot: [{day, INBOUND:n, OUTBOUND:n, TRANSFER:n}]
       const map = {}

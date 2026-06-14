@@ -8,7 +8,7 @@ export default function MovementsPage() {
   const [filter,    setFilter]    = useState('ALL')
 
   useEffect(() => {
-    inventoryApi.getRecentMovements().then(r => setMovements(r.data))
+    inventoryApi.getRecentMovements().then(r => setMovements(r.data)).catch(() => {})
   }, [])
 
   const filtered = filter === 'ALL' ? movements : movements.filter(m => m.type === filter)

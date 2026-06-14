@@ -20,7 +20,7 @@ export default function ProductsPage() {
   const fileRef = useRef()
   const { isAdmin, canWrite } = useAuth()
 
-  const load = () => inventoryApi.getProducts().then(r => setProducts(r.data))
+  const load = () => inventoryApi.getProducts().then(r => setProducts(r.data)).catch(() => {})
   useEffect(() => { load() }, [])
 
   const submit = async e => {

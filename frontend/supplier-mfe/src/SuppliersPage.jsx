@@ -10,7 +10,7 @@ export default function SuppliersPage() {
   const [form, setForm] = useState({ name:'', contactPerson:'', email:'', phone:'', address:'' })
   const [show, setShow] = useState(false)
 
-  const load = () => supplierApi.getSuppliers().then(r => setSuppliers(r.data))
+  const load = () => supplierApi.getSuppliers().then(r => setSuppliers(r.data)).catch(() => {})
   useEffect(() => { load() }, [])
 
   const save = async e => {
