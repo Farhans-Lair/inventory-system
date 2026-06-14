@@ -8,7 +8,7 @@ export default function LocationsPage() {
   const [locations, setLocations] = useState([])
   const [form, setForm]           = useState(EMPTY)
   const [error, setError]         = useState('')
-  const { isAdmin }               = useAuth()
+  const { isAdmin }               = useAuth() || {}
 
   const load = () => inventoryApi.getLocations().then(r => setLocations(r.data)).catch(() => {})
   useEffect(() => { load() }, [])

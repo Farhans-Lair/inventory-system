@@ -45,6 +45,8 @@ public class SecurityConfig {
                     "/api/auth/refresh",
                     "/api/auth/logout",   // Must be permitAll — called when token is expired or missing
                     "/actuator/health",
+                    "/actuator/health/readiness",  // ALB health check target
+                    "/actuator/health/liveness",   // ALB liveness check
                     "/actuator/info"
                 ).permitAll()
                 .anyRequest().authenticated()

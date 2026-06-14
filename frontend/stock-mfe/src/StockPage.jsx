@@ -18,7 +18,7 @@ export default function StockPage() {
   const [success,   setSuccess]   = useState('')
   const [filter,    setFilter]    = useState('all')
   const [showForm,  setShowForm]  = useState(false)
-  const { canWrite } = useAuth()
+  const { canWrite } = useAuth() || {}
 
   const load = () => {
     inventoryApi.getAllLevels().then(r => setLevels(r.data)).catch(() => {})

@@ -18,7 +18,7 @@ export default function ProductsPage() {
   const [success,   setSuccess]   = useState('')
   const [varForm,   setVarForm]   = useState({ sku:'', name:'', attributes:'', costPriceOverride:'', sellingPriceOverride:'' })
   const fileRef = useRef()
-  const { isAdmin, canWrite } = useAuth()
+  const { isAdmin, canWrite } = useAuth() || {}
 
   const load = () => inventoryApi.getProducts().then(r => setProducts(r.data)).catch(() => {})
   useEffect(() => { load() }, [])
