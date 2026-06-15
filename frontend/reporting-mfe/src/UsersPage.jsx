@@ -9,7 +9,7 @@ export default function UsersPage() {
   const [error, setError]   = useState('')
   const [success, setSuccess] = useState('')
 
-  const load = () => authApi.getUsers().then(r => setUsers(r.data))
+  const load = () => authApi.getUsers().then(r => setUsers(r.data)).catch(() => {})
   useEffect(() => { load() }, [])
 
   const submit = async e => {

@@ -116,10 +116,10 @@ services:
       DB_PASS: ${DB_PASS}
       INVENTORY_DB_NAME: ${INVENTORY_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_BUCKET: ${MINIO_BUCKET}
+      # S3 image storage: in local dev, image uploads are disabled (no AWS creds).
+      # In prod, the ECS task IAM role provides credentials automatically.
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      MINIO_BUCKET: ${MINIO_BUCKET:-inventory-images}
     networks:
       - inventory-net
     depends_on:

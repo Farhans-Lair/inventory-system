@@ -82,9 +82,9 @@ export default function PurchaseOrdersPage() {
                 <td style={{padding:'8px 12px',color:'#6b7280'}}>{po.expectedDeliveryDate}</td>
                 <td style={{padding:'8px 12px',color:'#6b7280'}}>{po.lines?.length || 0} items</td>
                 <td style={{padding:'8px 12px',display:'flex',gap:4,flexWrap:'wrap'}}>
-                  {po.status==='DRAFT'    && <button style={btn('#0891b2')} onClick={()=>supplierApi.updatePoStatus(po.id,'SENT').then(load)}>Mark Sent</button>}
-                  {po.status==='SENT'     && <button style={btn('#059669')} onClick={()=>supplierApi.updatePoStatus(po.id,'CONFIRMED').then(load)}>Confirm</button>}
-                  {po.status!=='RECEIVED' && po.status!=='CANCELLED' && <button style={btn('#f59e0b')} onClick={()=>supplierApi.updatePoStatus(po.id,'RECEIVED').then(load)}>Received</button>}
+                  {po.status==='DRAFT'    && <button style={btn('#0891b2')} onClick={()=>supplierApi.updatePoStatus(po.id,'SENT').then(load).catch(()=>{})}>Mark Sent</button>}
+                  {po.status==='SENT'     && <button style={btn('#059669')} onClick={()=>supplierApi.updatePoStatus(po.id,'CONFIRMED').then(load).catch(()=>{})}>Confirm</button>}
+                  {po.status!=='RECEIVED' && po.status!=='CANCELLED' && <button style={btn('#f59e0b')} onClick={()=>supplierApi.updatePoStatus(po.id,'RECEIVED').then(load).catch(()=>{})}>Received</button>}
                 </td>
               </tr>
             ))}

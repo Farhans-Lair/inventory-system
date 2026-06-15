@@ -198,8 +198,8 @@ export default function ProductsPage() {
                       </label>
                       <button onClick={() => toggleVariants(p.id)} style={{ background:'none', border:'1px solid #d1d5db', borderRadius:5, padding:'3px 8px', cursor:'pointer', fontSize:11 }}>Variants {expanded===p.id?'▲':'▼'}</button>
                       {isAdmin && (p.active
-                        ? <button onClick={() => inventoryApi.deactivateProduct(p.id).then(load)} style={{ background:'none', border:'1px solid #fecaca', borderRadius:5, padding:'3px 8px', cursor:'pointer', fontSize:11, color:'#ef4444' }}>Deactivate</button>
-                        : <button onClick={() => inventoryApi.activateProduct(p.id).then(load)}   style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:5, padding:'3px 8px', cursor:'pointer', fontSize:11, color:'#16a34a', fontWeight:600 }}>Activate</button>
+                        ? <button onClick={() => inventoryApi.deactivateProduct(p.id).then(load).catch(()=>{})} style={{ background:'none', border:'1px solid #fecaca', borderRadius:5, padding:'3px 8px', cursor:'pointer', fontSize:11, color:'#ef4444' }}>Deactivate</button>
+                        : <button onClick={() => inventoryApi.activateProduct(p.id).then(load).catch(()=>{})}   style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:5, padding:'3px 8px', cursor:'pointer', fontSize:11, color:'#16a34a', fontWeight:600 }}>Activate</button>
                       )}
                     </div>
                   </td>
@@ -230,7 +230,7 @@ export default function ProductsPage() {
                           ))}
                           {v.costPriceOverride && <span style={{ fontSize:11, color:'#6b7280' }}>Cost: ₹{v.costPriceOverride}</span>}
                           <span style={{ marginLeft:'auto', background:v.active?'#dcfce7':'#fee2e2', color:v.active?'#16a34a':'#dc2626', padding:'1px 8px', borderRadius:20, fontSize:10, fontWeight:600 }}>{v.active?'Active':'Inactive'}</span>
-                          <button onClick={() => inventoryApi.toggleVariant(p.id, v.id).then(async () => { const r=await inventoryApi.getVariants(p.id); setVariants(vv=>({...vv,[p.id]:r.data})) })} style={{ background:'none', border:'1px solid var(--border)', borderRadius:4, padding:'2px 8px', fontSize:11, cursor:'pointer' }}>Toggle</button>
+                          <button onClick={() => inventoryApi.toggleVariant(p.id, v.id).then(async () => { const r=await inventoryApi.getVariants(p.id); setVariants(vv=>({...vv,[p.id]:r.data})) }).catch(()=>{})} style={{ background:'none', border:'1px solid var(--border)', borderRadius:4, padding:'2px 8px', fontSize:11, cursor:'pointer' }}>Toggle</button>
                         </div>
                       ))
                     }

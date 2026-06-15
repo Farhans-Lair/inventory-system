@@ -1,18 +1,15 @@
-package com.inventory.auth.config;
+package com.inventory.stock.config;
 
-import com.inventory.auth.infrastructure.security.JwtAuthFilter;
+import com.inventory.stock.infrastructure.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -36,20 +33,19 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/api/auth/login",
-                    "/api/auth/verify-login",
-                    "/api/auth/signup",
-                    "/api/auth/verify-signup",
-                    "/api/auth/forgot-password",
-                    "/api/auth/reset-password",
-                    "/api/auth/refresh",
-                    "/api/auth/logout",   // Must be permitAll — called when token is expired or missing
                     "/actuator/health",
                     "/actuator/health/readiness",  // ALB health check target
                     "/actuator/health/liveness",   // ALB liveness check
                     "/actuator/info"
                 ).permitAll()
-                .anyRequest().authenticated()
+                // STAKEHOLDER can read everything — same as ADMIN and WAREHOUSE_MANAGER
+                .requestMatchers(HttpMethod.GET, "/api/products/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/locations/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/stock/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/batch-lots/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/cycle-counts/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                // All write operations require at least WAREHOUSE_MANAGER (fine-grained by @PreAuthorize)
+                .anyRequest().hasAnyRole("ADMIN","WAREHOUSE_MANAGER")
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -65,12 +61,5 @@ public class SecurityConfig {
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);
         return source;
-    }
-
-    @Bean public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
-        return cfg.getAuthenticationManager();
     }
 }

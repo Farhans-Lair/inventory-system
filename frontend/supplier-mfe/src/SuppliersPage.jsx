@@ -62,7 +62,7 @@ export default function SuppliersPage() {
                   </span>
                 </td>
                 <td style={{padding:'8px 12px'}}>
-                  <button style={btn(s.active?'#ef4444':'#22c55e')} onClick={()=>supplierApi.toggleSupplier(s.id).then(load)}>
+                  <button style={btn(s.active?'#ef4444':'#22c55e')} onClick={()=>supplierApi.toggleSupplier(s.id).then(load).catch(()=>{})}>
                     {s.active?'Deactivate':'Activate'}
                   </button>
                 </td>

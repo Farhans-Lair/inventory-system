@@ -113,7 +113,7 @@ export default function UomPage() {
                 <td style={td}><span style={{ background: '#ede9fe', color: '#5b21b6', padding: '2px 8px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>1 : {c.factor}</span></td>
                 <td style={{ ...td, color: '#6b7280' }}>{c.description || '—'}</td>
                 <td style={td}>
-                  <button onClick={() => inventoryApi.deleteUomConversion(c.id).then(load)}
+                  <button onClick={() => inventoryApi.deleteUomConversion(c.id).then(load).catch(()=>{})}
                     style={{ ...btn('#ef4444'), padding: '4px 10px', fontSize: 12 }}>Delete</button>
                 </td>
               </tr>
