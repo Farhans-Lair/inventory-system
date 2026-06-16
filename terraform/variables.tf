@@ -54,7 +54,11 @@ variable "ec2_max_instances" {
 
 variable "ec2_desired_instances" {
   description = "Initial desired count (ASG takes over after first apply)"
-  default     = 2
+  # 3 instances required: t3.large supports 3 ENIs per instance.
+  # With awsvpc network mode each ECS task needs 1 ENI.
+  # 3 instances × 3 ENIs = 9 slots - 3 for the instances themselves = 6 for tasks.
+  # We run exactly 6 ECS services so 3 instances is the minimum needed.
+  default     = 3
 }
 
 # ── S3 ─────────────────────────────────────────────────────────────────────
