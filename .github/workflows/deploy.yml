@@ -151,10 +151,6 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "inventoryms-prod/auth-service" --region $AWS_REGION 2>/dev/null || \
-          aws ecr create-repository --repository-name "inventoryms-prod/auth-service" --region $AWS_REGION
       - name: Build and push image
         run: |
           docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" -t "${ECR_BASE}/auth-service:latest" ./auth-service
@@ -198,10 +194,6 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "inventoryms-prod/inventory-service" --region $AWS_REGION 2>/dev/null || \
-          aws ecr create-repository --repository-name "inventoryms-prod/inventory-service" --region $AWS_REGION
       - name: Build and push image
         run: |
           docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" -t "${ECR_BASE}/inventory-service:latest" ./inventory-service
@@ -245,10 +237,6 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "inventoryms-prod/notification-service" --region $AWS_REGION 2>/dev/null || \
-          aws ecr create-repository --repository-name "inventoryms-prod/notification-service" --region $AWS_REGION
       - name: Build and push image
         run: |
           docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" -t "${ECR_BASE}/notification-service:latest" ./notification-service
@@ -292,10 +280,6 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "inventoryms-prod/reporting-service" --region $AWS_REGION 2>/dev/null || \
-          aws ecr create-repository --repository-name "inventoryms-prod/reporting-service" --region $AWS_REGION
       - name: Build and push image
         run: |
           docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" -t "${ECR_BASE}/reporting-service:latest" ./reporting-service
@@ -339,10 +323,6 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "inventoryms-prod/supplier-service" --region $AWS_REGION 2>/dev/null || \
-          aws ecr create-repository --repository-name "inventoryms-prod/supplier-service" --region $AWS_REGION
       - name: Build and push image
         run: |
           docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" -t "${ECR_BASE}/supplier-service:latest" ./supplier-service
@@ -437,10 +417,6 @@ jobs:
             docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
       # Docker build context is ./frontend/shell which now contains mfe-dist/
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "inventoryms-prod/frontend" --region $AWS_REGION 2>/dev/null || \
-          aws ecr create-repository --repository-name "inventoryms-prod/frontend" --region $AWS_REGION
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
