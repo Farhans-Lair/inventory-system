@@ -62,7 +62,7 @@ resource "aws_ecs_task_definition" "auth" {
       { name = "DB_PASS",       value = var.db_password },
       { name = "AUTH_DB_NAME",  value = "authdb" },
       { name = "JWT_SECRET",    value = var.jwt_secret },
-      { name = "COOKIE_SECURE", value = "true" },
+      { name = "COOKIE_SECURE", value = "false" },  # HTTP-only ALB — set to true only after HTTPS/ACM is configured
       { name = "MAIL_HOST",     value = "smtp.gmail.com" },
       { name = "MAIL_PORT",     value = "587" },
       { name = "MAIL_USERNAME", value = var.mail_username },
