@@ -31,9 +31,27 @@
       <artifactId>shared-lib</artifactId>
       <version>1.0.0</version>
     </dependency>
+    <!-- Test scope — required for mvn test phase to complete without errors -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
+      <!-- Skip tests explicitly — no test sources exist yet.
+           Without this config, maven-surefire-plugin 3.x (used by Spring Boot
+           3.2.5 parent) can hang indefinitely when no JUnit platform provider
+           is found on the classpath. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+          <failIfNoTests>false</failIfNoTests>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
