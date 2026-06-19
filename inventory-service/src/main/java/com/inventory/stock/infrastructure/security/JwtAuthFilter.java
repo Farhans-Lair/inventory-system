@@ -33,7 +33,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (token != null && jwtTokenProvider.isValid(token)) {
             Claims claims = jwtTokenProvider.validateAndParse(token);
             req.setAttribute("claims", claims);
-
             String role = claims.get("role", String.class);
             var auth = new UsernamePasswordAuthenticationToken(
                     claims.getSubject(), null,
@@ -44,19 +43,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         chain.doFilter(req, res);
     }
 
+    /**
+     * Token extraction priority:
+     * 1. Authorization: Bearer header — tab-isolated token from sessionStorage
+     * 2. access_token cookie — backward-compatible fallback for local dev
+     */
     private String extractToken(HttpServletRequest req) {
-        // 1. HttpOnly cookie (primary — set by auth-service on login)
+        // 1. Authorization header first (tab-isolated sessionStorage token)
+        String header = req.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        // 2. Cookie fallback
         if (req.getCookies() != null) {
             for (Cookie c : req.getCookies()) {
                 if ("access_token".equals(c.getName())) {
                     return c.getValue();
                 }
             }
-        }
-        // 2. Authorization header fallback (for direct API / dev tool access)
-        String header = req.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            return header.substring(7);
         }
         return null;
     }

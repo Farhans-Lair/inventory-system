@@ -1,8 +1,6 @@
 import { createContext, useContext, useState } from 'react'
 
-// Safe default context value prevents "Cannot destructure property of null" errors
-// when a page component is loaded via Module Federation without being explicitly
-// wrapped in AuthProvider. useAuth() returns safe defaults instead of null.
+// Safe default prevents null destructuring when component mounts without AuthProvider
 const defaultContext = {
   user:          null,
   isAdmin:       false,
@@ -13,9 +11,17 @@ const defaultContext = {
 
 const AuthContext = createContext(defaultContext)
 
+/**
+ * Reads user profile from sessionStorage (tab-scoped).
+ * Each tab has its own independent session — logging in/out
+ * on one tab does not affect other tabs.
+ */
 export function AuthProvider({ children }) {
-  const stored = localStorage.getItem('user')
-  const [user, setUser] = useState(stored ? JSON.parse(stored) : null)
+  const stored = (() => {
+    try { const s = sessionStorage.getItem('user'); return s ? JSON.parse(s) : null }
+    catch { return null }
+  })()
+  const [user] = useState(stored)
   const isAdmin       = user?.role === 'ADMIN'
   const isManager     = user?.role === 'WAREHOUSE_MANAGER'
   const isStakeholder = user?.role === 'STAKEHOLDER'
@@ -28,3 +34,4 @@ export function AuthProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext)
+

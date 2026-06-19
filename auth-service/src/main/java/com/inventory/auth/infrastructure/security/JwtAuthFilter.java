@@ -33,7 +33,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (token != null && jwtTokenProvider.isValid(token)) {
             Claims claims = jwtTokenProvider.validateAndParse(token);
             req.setAttribute("claims", claims);
-
             String role = claims.get("role", String.class);
             var auth = new UsernamePasswordAuthenticationToken(
                     claims.getSubject(), null,
@@ -45,23 +44,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Read the JWT from the HttpOnly 'access_token' cookie.
-     * Falls back to Authorization header for backward-compatibility
-     * (e.g. direct API calls during development).
+     * Token extraction priority:
+     * 1. Authorization: Bearer header — used by tab-isolated sessionStorage tokens
+     * 2. access_token cookie — backward-compatibility fallback (e.g. local dev with docker-compose)
      */
     private String extractToken(HttpServletRequest req) {
-        // 1. Try HttpOnly cookie first
+        // 1. Authorization header first (tab-isolated access token from sessionStorage)
+        String header = req.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        // 2. Cookie fallback (backward-compatible with local docker-compose setup)
         if (req.getCookies() != null) {
             for (Cookie c : req.getCookies()) {
                 if ("access_token".equals(c.getName())) {
                     return c.getValue();
                 }
             }
-        }
-        // 2. Fall back to Authorization header
-        String header = req.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            return header.substring(7);
         }
         return null;
     }

@@ -1,55 +1,74 @@
 import axios from 'axios'
 
 /**
- * All requests include credentials: 'include' so the browser automatically
- * attaches the HttpOnly access_token and refresh_token cookies on every call.
- * We never read or write token values in JavaScript.
+ * TAB-ISOLATED MFE API CLIENT
+ *
+ * Sends Authorization: Bearer header using this tab's access token
+ * from sessionStorage. Each tab is independently authenticated.
+ *
+ * withCredentials: true kept for refresh_token cookie on /api/auth/refresh.
  */
 const client = axios.create({
   baseURL: '/',
-  withCredentials: true,   // send cookies on every request
+  withCredentials: true,
 })
 
-let isRefreshing  = false
-let failedQueue   = []
+// ── Request interceptor: attach this tab's access token ──────────────────
+client.interceptors.request.use(config => {
+  const token = sessionStorage.getItem('access_token')
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`
+  }
+  return config
+})
 
-const processQueue = (error) => {
-  failedQueue.forEach(p => error ? p.reject(error) : p.resolve())
+// ── Response interceptor: handle 401 with token refresh ──────────────────
+let isRefreshing = false
+let failedQueue  = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(p => error ? p.reject(error) : p.resolve(token))
   failedQueue = []
 }
 
 client.interceptors.response.use(
   r => r,
   async err => {
-    const status       = err.response?.status
-    const originalReq  = err.config
-    const url          = originalReq?.url || ''
-
-    // Don't retry refresh/login/logout endpoints — that would loop forever
+    const status      = err.response?.status
+    const originalReq = err.config
+    const url         = originalReq?.url || ''
     const isAuthEndpoint = url.includes('/api/auth/')
 
     if (status === 401 && !originalReq._retry && !isAuthEndpoint) {
       if (isRefreshing) {
-        // Queue this request until the ongoing refresh finishes
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
-        }).then(() => client(originalReq))
-          .catch(e => Promise.reject(e))
+        }).then(token => {
+          originalReq.headers['Authorization'] = `Bearer ${token}`
+          return client(originalReq)
+        }).catch(e => Promise.reject(e))
       }
 
       originalReq._retry = true
       isRefreshing = true
 
       try {
-        // POST to refresh — the browser sends the refresh_token cookie automatically
-        // The server validates it, issues a new access_token cookie, and returns user info
-        await client.post('/api/auth/refresh')
-        processQueue(null)
-        return client(originalReq)   // retry original request with new cookie
+        const { data } = await client.post('/api/auth/refresh')
+        const newToken = data.accessToken
+        sessionStorage.setItem('access_token', newToken)
+        if (data.userId) {
+          sessionStorage.setItem('user', JSON.stringify({
+            userId: data.userId, email: data.email,
+            fullName: data.fullName, role: data.role,
+          }))
+        }
+        processQueue(null, newToken)
+        originalReq.headers['Authorization'] = `Bearer ${newToken}`
+        return client(originalReq)
       } catch (refreshError) {
-        processQueue(refreshError)
-        // Refresh token is invalid/expired — clear local profile and redirect to login
-        localStorage.removeItem('user')
+        processQueue(refreshError, null)
+        sessionStorage.removeItem('access_token')
+        sessionStorage.removeItem('user')
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {

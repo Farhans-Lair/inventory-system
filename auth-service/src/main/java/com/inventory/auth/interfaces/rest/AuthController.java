@@ -21,13 +21,12 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService       authService;
-    private final JwtTokenProvider  jwtTokenProvider;
+    private final AuthService      authService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Value("${cookie.secure:false}")
     private boolean cookieSecure;
 
-    // ── Public: Signup ────────────────────────────────────────────────────
     @PostMapping("/signup")
     public ResponseEntity<OtpRequestResponse> signup(@RequestBody @Valid SignupRequest req) {
         return ResponseEntity.ok(authService.initiateSignup(req));
@@ -37,12 +36,10 @@ public class AuthController {
     public ResponseEntity<TokenPairResponse> verifySignup(
             @RequestBody @Valid OtpVerifyRequest req, HttpServletResponse res) {
         TokenPairResponse pair = authService.verifySignup(req);
-        setAuthCookies(res, pair);
-        // Return user info only — tokens are in HttpOnly cookies, not the body
+        setRefreshCookie(res, pair.getRefreshToken());
         return ResponseEntity.ok(sanitize(pair));
     }
 
-    // ── Public: Login ─────────────────────────────────────────────────────
     @PostMapping("/login")
     public ResponseEntity<OtpRequestResponse> login(@RequestBody @Valid LoginRequest req) {
         return ResponseEntity.ok(authService.initiateLogin(req));
@@ -52,11 +49,10 @@ public class AuthController {
     public ResponseEntity<TokenPairResponse> verifyLogin(
             @RequestBody @Valid OtpVerifyRequest req, HttpServletResponse res) {
         TokenPairResponse pair = authService.verifyLogin(req);
-        setAuthCookies(res, pair);
+        setRefreshCookie(res, pair.getRefreshToken());
         return ResponseEntity.ok(sanitize(pair));
     }
 
-    // ── Public: Password reset ────────────────────────────────────────────
     @PostMapping("/forgot-password")
     public ResponseEntity<OtpRequestResponse> forgotPassword(@RequestBody @Valid ForgotPasswordRequest req) {
         return ResponseEntity.ok(authService.forgotPassword(req));
@@ -68,7 +64,11 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
-    // ── Public: Refresh — reads refresh_token cookie, sets new access_token cookie ──
+    /**
+     * Refresh — reads refresh_token HttpOnly cookie (sent automatically because
+     * client uses withCredentials:true for this endpoint), rotates it, and
+     * returns a new access token in the response body.
+     */
     @PostMapping("/refresh")
     public ResponseEntity<TokenPairResponse> refresh(
             @CookieValue(name = "refresh_token", required = false) String refreshToken,
@@ -77,81 +77,64 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             TokenPairResponse pair = authService.refreshAccessToken(refreshToken);
-            setAuthCookies(res, pair);
+            setRefreshCookie(res, pair.getRefreshToken());
             return ResponseEntity.ok(sanitize(pair));
         } catch (Exception e) {
-            clearAuthCookies(res);
+            clearRefreshCookie(res);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
 
-    // ── Public: Logout — clears cookies, revokes tokens ──────────────────
-    // Logout is permitAll so it works even when the access token has just expired
+    /**
+     * Logout — revokes refresh token in DB and clears the refresh_token cookie.
+     * Access token expires naturally (max 1 hour) — no server-side revocation needed
+     * since it is tab-scoped in sessionStorage and already cleared by the client.
+     */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @CookieValue(name = "access_token", required = false) String accessToken,
+            @CookieValue(name = "refresh_token", required = false) String refreshToken,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             HttpServletResponse res) {
-        if (accessToken != null && jwtTokenProvider.isValid(accessToken)) {
-            Claims claims = jwtTokenProvider.validateAndParse(accessToken);
-            authService.logout(claims.getSubject());
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                if (jwtTokenProvider.isValid(token)) {
+                    Claims claims = jwtTokenProvider.validateAndParse(token);
+                    authService.logout(claims.getSubject());
+                }
+            } catch (Exception ignored) {}
         }
-        clearAuthCookies(res);
+        clearRefreshCookie(res);
         return ResponseEntity.ok().build();
     }
 
     // ── Cookie helpers ────────────────────────────────────────────────────
 
-    /**
-     * Set two HttpOnly cookies:
-     *   access_token  — Path=/        (sent to all API endpoints)
-     *   refresh_token — Path=/api/auth/ (sent only to auth endpoints)
-     */
-    private void setAuthCookies(HttpServletResponse res, TokenPairResponse pair) {
-        ResponseCookie access = ResponseCookie.from("access_token", pair.getAccessToken())
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite("Strict")
-                .path("/")
-                .maxAge(Duration.ofHours(1))
-                .build();
-
-        ResponseCookie refresh = ResponseCookie.from("refresh_token", pair.getRefreshToken())
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite("Strict")
-                .path("/api/auth/")   // limited to auth endpoints only
-                .maxAge(Duration.ofDays(7))
-                .build();
-
-        res.addHeader(HttpHeaders.SET_COOKIE, access.toString());
-        res.addHeader(HttpHeaders.SET_COOKIE, refresh.toString());
+    private void setRefreshCookie(HttpServletResponse res, String token) {
+        ResponseCookie c = ResponseCookie.from("refresh_token", token)
+                .httpOnly(true).secure(cookieSecure).sameSite("Strict")
+                .path("/api/auth/").maxAge(Duration.ofDays(7)).build();
+        res.addHeader(HttpHeaders.SET_COOKIE, c.toString());
     }
 
-    /** Expire both cookies immediately (browser deletes them). */
-    private void clearAuthCookies(HttpServletResponse res) {
-        ResponseCookie access = ResponseCookie.from("access_token", "")
-                .httpOnly(true).secure(cookieSecure).sameSite("Strict")
-                .path("/").maxAge(0).build();
-
-        ResponseCookie refresh = ResponseCookie.from("refresh_token", "")
+    private void clearRefreshCookie(HttpServletResponse res) {
+        ResponseCookie c = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true).secure(cookieSecure).sameSite("Strict")
                 .path("/api/auth/").maxAge(0).build();
-
-        res.addHeader(HttpHeaders.SET_COOKIE, access.toString());
-        res.addHeader(HttpHeaders.SET_COOKIE, refresh.toString());
+        res.addHeader(HttpHeaders.SET_COOKIE, c.toString());
     }
 
     /**
-     * Strip the raw token values from the response body.
-     * The browser only needs userId/email/fullName/role — tokens are in cookies.
+     * Include accessToken in body (client stores in sessionStorage per tab).
+     * Never include refreshToken in body — it lives only in the HttpOnly cookie.
      */
     private TokenPairResponse sanitize(TokenPairResponse pair) {
         return TokenPairResponse.builder()
+                .accessToken(pair.getAccessToken())
                 .userId(pair.getUserId())
                 .email(pair.getEmail())
                 .fullName(pair.getFullName())
                 .role(pair.getRole())
-                // accessToken and refreshToken deliberately omitted
                 .build();
     }
 }

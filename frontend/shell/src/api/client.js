@@ -1,55 +1,96 @@
 import axios from 'axios'
 
 /**
- * All requests include credentials: 'include' so the browser automatically
- * attaches the HttpOnly access_token and refresh_token cookies on every call.
- * We never read or write token values in JavaScript.
+ * TAB-ISOLATED API CLIENT
+ *
+ * Every request sends Authorization: Bearer <token> from this tab's sessionStorage.
+ * This ensures each tab independently authenticates with its own user's token.
+ *
+ * withCredentials: true is kept so the browser sends the refresh_token HttpOnly
+ * cookie to /api/auth/refresh for token rotation.
+ *
+ * Token refresh flow:
+ * 1. Request gets 401 (access token expired)
+ * 2. POST /api/auth/refresh — browser sends refresh_token cookie automatically
+ * 3. Server validates refresh token, rotates it, returns new access token in body
+ * 4. New access token stored in this tab's sessionStorage
+ * 5. Original request retried with new token
  */
 const client = axios.create({
   baseURL: '/',
-  withCredentials: true,   // send cookies on every request
+  withCredentials: true, // needed for refresh_token cookie on /api/auth/ endpoints
 })
 
-let isRefreshing  = false
-let failedQueue   = []
+// ── Request interceptor: attach this tab's access token ──────────────────
+client.interceptors.request.use(config => {
+  const token = sessionStorage.getItem('access_token')
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`
+  }
+  return config
+})
 
-const processQueue = (error) => {
-  failedQueue.forEach(p => error ? p.reject(error) : p.resolve())
+// ── Response interceptor: handle 401 with token refresh ──────────────────
+let isRefreshing = false
+let failedQueue  = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(p => error ? p.reject(error) : p.resolve(token))
   failedQueue = []
 }
 
 client.interceptors.response.use(
   r => r,
   async err => {
-    const status       = err.response?.status
-    const originalReq  = err.config
-    const url          = originalReq?.url || ''
+    const status      = err.response?.status
+    const originalReq = err.config
+    const url         = originalReq?.url || ''
 
-    // Don't retry refresh/login/logout endpoints — that would loop forever
+    // Never retry auth endpoints — prevents infinite loops
     const isAuthEndpoint = url.includes('/api/auth/')
 
     if (status === 401 && !originalReq._retry && !isAuthEndpoint) {
       if (isRefreshing) {
-        // Queue this request until the ongoing refresh finishes
+        // Another request already triggered refresh — queue this one
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
-        }).then(() => client(originalReq))
-          .catch(e => Promise.reject(e))
+        }).then(token => {
+          originalReq.headers['Authorization'] = `Bearer ${token}`
+          return client(originalReq)
+        }).catch(e => Promise.reject(e))
       }
 
       originalReq._retry = true
       isRefreshing = true
 
       try {
-        // POST to refresh — the browser sends the refresh_token cookie automatically
-        // The server validates it, issues a new access_token cookie, and returns user info
-        await client.post('/api/auth/refresh')
-        processQueue(null)
-        return client(originalReq)   // retry original request with new cookie
+        // POST /api/auth/refresh — browser sends refresh_token cookie automatically.
+        // Server rotates refresh token and returns new access token in body.
+        const { data } = await client.post('/api/auth/refresh')
+        const newToken = data.accessToken
+
+        sessionStorage.setItem('access_token', newToken)
+
+        // Also update user profile if server returned it
+        if (data.userId) {
+          const u = {
+            userId:   data.userId,
+            email:    data.email,
+            fullName: data.fullName,
+            role:     data.role,
+          }
+          sessionStorage.setItem('user', JSON.stringify(u))
+        }
+
+        processQueue(null, newToken)
+        originalReq.headers['Authorization'] = `Bearer ${newToken}`
+        return client(originalReq)
+
       } catch (refreshError) {
-        processQueue(refreshError)
-        // Refresh token is invalid/expired — clear local profile and redirect to login
-        localStorage.removeItem('user')
+        processQueue(refreshError, null)
+        // Refresh token expired/invalid — clear this tab's session and redirect
+        sessionStorage.removeItem('access_token')
+        sessionStorage.removeItem('user')
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {
