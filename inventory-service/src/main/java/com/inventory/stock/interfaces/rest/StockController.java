@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,7 @@ public class StockController {
     }
 
     @PatchMapping("/levels/thresholds")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<StockLevelDto> updateThresholds(@RequestBody Map<String, Object> body) {
         return ResponseEntity.ok(stockService.updateThresholds(
                 (String) body.get("productId"), (String) body.get("locationId"),
@@ -55,6 +57,7 @@ public class StockController {
 
     // ── B5: Movement with reason codes ────────────────────────────────────
     @PostMapping("/movement")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<StockMovementResponse> movement(
             @RequestBody @Valid StockMovementRequest req, HttpServletRequest http) {
         Claims claims = (Claims) http.getAttribute("claims");
@@ -74,16 +77,19 @@ public class StockController {
 
     // ── B1: Reservations ─────────────────────────────────────────────────
     @PostMapping("/reservations")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<StockReservationDto> reserve(@RequestBody StockReservationDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(stockService.createReservation(dto));
     }
 
     @PatchMapping("/reservations/{id}/release")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<StockReservationDto> release(@PathVariable String id) {
         return ResponseEntity.ok(stockService.releaseReservation(id));
     }
 
     @PatchMapping("/reservations/{id}/fulfill")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<StockReservationDto> fulfill(@PathVariable String id) {
         return ResponseEntity.ok(stockService.fulfillReservation(id));
     }
@@ -111,16 +117,19 @@ public class StockController {
     }
 
     @PostMapping("/uom")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<UomConversionDto> createConversion(@RequestBody UomConversionDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(uomService.create(dto));
     }
 
     @PutMapping("/uom/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<UomConversionDto> updateConversion(@PathVariable String id, @RequestBody UomConversionDto dto) {
         return ResponseEntity.ok(uomService.update(id, dto));
     }
 
     @DeleteMapping("/uom/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<Void> deleteConversion(@PathVariable String id) {
         uomService.delete(id); return ResponseEntity.noContent().build();
     }
