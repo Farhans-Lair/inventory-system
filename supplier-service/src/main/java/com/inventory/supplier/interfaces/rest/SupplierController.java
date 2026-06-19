@@ -4,6 +4,7 @@ import com.inventory.supplier.application.dto.*;
 import com.inventory.supplier.domain.model.PurchaseOrder.PoStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -14,21 +15,26 @@ public class SupplierController {
     @GetMapping("/api/suppliers")
     public ResponseEntity<List<SupplierDto>> all() { return ResponseEntity.ok(supplierService.getAllSuppliers()); }
     @PostMapping("/api/suppliers")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<SupplierDto> create(@RequestBody SupplierDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.createSupplier(dto)); }
     @PutMapping("/api/suppliers/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<SupplierDto> update(@PathVariable String id, @RequestBody SupplierDto dto) {
         return ResponseEntity.ok(supplierService.updateSupplier(id, dto)); }
     @PatchMapping("/api/suppliers/{id}/toggle")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<Void> toggle(@PathVariable String id) { supplierService.toggleSupplier(id); return ResponseEntity.ok().build(); }
 
     @GetMapping("/api/purchase-orders")
     public ResponseEntity<List<PurchaseOrderDto>> allPos(@RequestParam(required=false) PoStatus status) {
         return ResponseEntity.ok(status != null ? supplierService.getPosByStatus(status) : supplierService.getAllPos()); }
     @PostMapping("/api/purchase-orders")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<PurchaseOrderDto> createPo(@RequestBody PurchaseOrderDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.createPo(dto)); }
     @PatchMapping("/api/purchase-orders/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<PurchaseOrderDto> updateStatus(@PathVariable String id, @RequestBody java.util.Map<String,String> body) {
         return ResponseEntity.ok(supplierService.updatePoStatus(id, PoStatus.valueOf(body.get("status")))); }
 
@@ -36,6 +42,7 @@ public class SupplierController {
     public ResponseEntity<List<GrnDto>> getGrns(@PathVariable String poId) {
         return ResponseEntity.ok(supplierService.getGrnsForPo(poId)); }
     @PostMapping("/api/purchase-orders/{poId}/grn")
+    @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<GrnDto> receiveGoods(@PathVariable String poId, @RequestBody GrnDto dto) {
         dto.setPoId(poId);
         return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.receiveGoods(dto)); }
