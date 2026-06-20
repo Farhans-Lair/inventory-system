@@ -3,18 +3,6 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { authApi } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 
-const s = {
-  wrap:    { minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb' },
-  box:     { background:'#fff', padding:'40px', borderRadius:'12px', border:'1px solid #e5e7eb', width:'100%', maxWidth:'380px' },
-  title:   { fontSize:'22px', fontWeight:700, marginBottom:'8px' },
-  sub:     { color:'#6b7280', fontSize:'13px', marginBottom:'24px' },
-  label:   { display:'block', fontSize:'13px', fontWeight:500, color:'#374151', marginBottom:'4px' },
-  input:   { width:'100%', padding:'10px 12px', border:'1px solid #d1d5db', borderRadius:'8px', fontSize:'14px', boxSizing:'border-box', marginBottom:'14px' },
-  btn:     { width:'100%', padding:'11px', background:'#4f46e5', color:'#fff', border:'none', borderRadius:'8px', fontSize:'14px', fontWeight:600, cursor:'pointer' },
-  err:     { background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'8px', padding:'10px 14px', color:'#991b1b', fontSize:'13px', marginBottom:'14px' },
-  success: { background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'8px', padding:'10px 14px', color:'#15803d', fontSize:'13px', marginBottom:'14px' },
-}
-
 export default function LoginPage() {
   const [step,     setStep]     = useState(1)
   const [email,    setEmail]    = useState('')
@@ -27,7 +15,6 @@ export default function LoginPage() {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  // Show a banner when redirected here after successful signup
   const justRegistered = location.state?.registered === true
 
   async function step1(e) {
@@ -43,50 +30,151 @@ export default function LoginPage() {
     e.preventDefault(); setError(''); setLoading(true)
     try {
       const r = await authApi.verifyLogin({ email, otp })
-      // r.data contains { userId, email, fullName, role } — tokens are in HttpOnly cookies
       login(r.data)
       navigate('/')
     } catch(err) { setError(err.response?.data?.message || 'Verification failed') }
     finally { setLoading(false) }
   }
 
+  const inputStyle = {
+    width: '100%', padding: '11px 13px', border: '1px solid var(--line)',
+    borderRadius: 'var(--radius)', fontSize: 14, marginBottom: 14,
+    fontFamily: 'var(--font-body)', background: '#fff',
+  }
+
   return (
-    <div style={s.wrap}>
-      <div style={s.box}>
-        <div style={s.title}>Sign in</div>
-        <div style={s.sub}>{step===1 ? 'Enter your credentials' : 'Enter the code sent to your email'}</div>
+    <div style={{ minHeight: '100vh', display: 'flex', fontFamily: 'var(--font-body)' }}>
 
-        {justRegistered && step===1 && (
-          <div style={s.success}>
-            Account created! Please sign in with your new credentials.
+      {/* ── Left: identity panel — manifest board concept ────────────── */}
+      <div style={{
+        flex: '0 0 44%', background: 'var(--deep)', color: '#fff',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        padding: '48px 56px', position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0, opacity: .05, backgroundImage:
+            'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 1px, transparent 14px)',
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{
+              width: 38, height: 38, background: 'var(--accent)', borderRadius: 7,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 17,
+            }}>IM</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700 }}>
+              InventoryMS
+            </span>
           </div>
-        )}
+        </div>
 
-        {error && <div style={s.err}>{error}</div>}
-        {devOtp && <div style={{...s.err, background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e'}}>Dev OTP: <strong>{devOtp}</strong></div>}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{
+            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)',
+            letterSpacing: '2px', marginBottom: 14, textTransform: 'uppercase',
+          }}>
+            Warehouse Operations Platform
+          </div>
+          <h1 style={{
+            fontFamily: 'var(--font-display)', fontSize: 38, fontWeight: 700,
+            lineHeight: 1.15, marginBottom: 20, maxWidth: 420,
+          }}>
+            Every pallet,<br/>every SKU,<br/>tracked.
+          </h1>
+          <p style={{ color: '#C9D4CC', fontSize: 14, maxWidth: 380, lineHeight: 1.7 }}>
+            Stock levels, batch expiry, purchase orders and supplier
+            performance — one ledger, three roles, zero guesswork.
+          </p>
+        </div>
 
-        {step===1 && (
-          <form onSubmit={step1}>
-            <label style={s.label}>Email</label>
-            <input style={s.input} type="email" value={email} onChange={e=>setEmail(e.target.value)} required />
-            <label style={s.label}>Password</label>
-            <input style={s.input} type="password" value={password} onChange={e=>setPassword(e.target.value)} required />
-            <button style={s.btn} disabled={loading}>{loading ? 'Sending code…' : 'Continue'}</button>
-            <div style={{textAlign:'right',marginTop:10,fontSize:13}}>
-              <Link to="/forgot-password" style={{color:'#4f46e5'}}>Forgot password?</Link>
+        <div style={{
+          position: 'relative', zIndex: 1, display: 'flex', gap: 28,
+          fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--steel)',
+          borderTop: '1px solid var(--line-deep)', paddingTop: 18,
+        }}>
+          <span>MICROSERVICE ARCHITECTURE</span>
+          <span>ROLE-BASED ACCESS</span>
+          <span>REAL-TIME STOCK</span>
+        </div>
+      </div>
+
+      {/* ── Right: auth form ────────────────────────────────────────── */}
+      <div style={{
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg)', padding: 24,
+      }}>
+        <div className="card" style={{ width: '100%', maxWidth: 380, padding: 40 }}>
+          <div style={{
+            fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-2)',
+            letterSpacing: '1.5px', marginBottom: 6, textTransform: 'uppercase',
+          }}>
+            {step === 1 ? 'Step 1 of 2 — Credentials' : 'Step 2 of 2 — Verification'}
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, marginBottom: 24 }}>
+            Sign in
+          </h2>
+
+          {justRegistered && step === 1 && (
+            <div style={{
+              background: 'var(--ok-bg)', border: '1px solid var(--ok)', borderRadius: 'var(--radius)',
+              padding: '10px 14px', color: 'var(--ok)', fontSize: 13, marginBottom: 16,
+            }}>
+              Account created — sign in with your new credentials.
             </div>
-          </form>
-        )}
-        {step===2 && (
-          <form onSubmit={step2}>
-            <label style={s.label}>Verification code</label>
-            <input style={s.input} value={otp} onChange={e=>setOtp(e.target.value)} placeholder="6-digit code" required />
-            <button style={s.btn} disabled={loading}>{loading ? 'Verifying…' : 'Sign in'}</button>
-            <button type="button" style={{...s.btn, background:'transparent', color:'#6b7280', border:'1px solid #d1d5db', marginTop:8}} onClick={()=>setStep(1)}>← Back</button>
-          </form>
-        )}
-        <div style={{textAlign:'center',marginTop:20,fontSize:13,color:'#6b7280'}}>
-          No account? <Link to="/signup" style={{color:'#4f46e5'}}>Sign up</Link>
+          )}
+          {error && (
+            <div style={{
+              background: 'var(--crit-bg)', border: '1px solid var(--crit)', borderRadius: 'var(--radius)',
+              padding: '10px 14px', color: 'var(--crit)', fontSize: 13, marginBottom: 16,
+            }}>
+              {error}
+            </div>
+          )}
+          {devOtp && (
+            <div style={{
+              background: 'var(--warn-bg)', border: '1px solid var(--warn)', borderRadius: 'var(--radius)',
+              padding: '10px 14px', color: 'var(--warn)', fontSize: 13, marginBottom: 16,
+              fontFamily: 'var(--font-mono)',
+            }}>
+              DEV OTP: <strong>{devOtp}</strong>
+            </div>
+          )}
+
+          {step === 1 && (
+            <form onSubmit={step1}>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Email</label>
+              <input style={inputStyle} type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Password</label>
+              <input style={inputStyle} type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+              <button className="btn-primary" style={{ width: '100%', padding: 12 }} disabled={loading}>
+                {loading ? 'Sending code…' : 'Continue →'}
+              </button>
+              <div style={{ textAlign: 'right', marginTop: 12, fontSize: 12.5 }}>
+                <Link to="/forgot-password" style={{ color: 'var(--accent)', fontWeight: 500 }}>Forgot password?</Link>
+              </div>
+            </form>
+          )}
+
+          {step === 2 && (
+            <form onSubmit={step2}>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Verification code</label>
+              <input
+                style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 18, letterSpacing: 4, textAlign: 'center' }}
+                value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000" maxLength={6} required autoFocus
+              />
+              <button className="btn-primary" style={{ width: '100%', padding: 12 }} disabled={loading}>
+                {loading ? 'Verifying…' : 'Sign in'}
+              </button>
+              <button type="button" className="btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setStep(1)}>
+                ← Back
+              </button>
+            </form>
+          )}
+
+          <div style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: 'var(--text-2)' }}>
+            No account? <Link to="/signup" style={{ color: 'var(--accent)', fontWeight: 600 }}>Create one</Link>
+          </div>
         </div>
       </div>
     </div>
