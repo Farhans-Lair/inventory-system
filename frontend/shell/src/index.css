@@ -71,6 +71,21 @@ button { font-family: inherit; }
   --font-display: 'Space Grotesk', sans-serif;
   --font-body:    'Inter', sans-serif;
   --font-mono:    'JetBrains Mono', monospace;
+
+  /* ── Legacy token aliases ─────────────────────────────────────────────
+   * The 12 MFE page files (ProductsPage, DashboardPage, StockPage, etc.)
+   * still reference the OLD token names from before this redesign
+   * (--primary, --primary-h, --danger, --success, --warning). Those tokens
+   * were removed when the design system was rebuilt, which made every
+   * button/badge/border referencing them resolve to nothing — invisible,
+   * not absent. These aliases point the old names at the new palette so
+   * every existing page renders correctly without editing 12 page files.
+   */
+  --primary:    var(--accent);
+  --primary-h:  var(--accent-h);
+  --danger:     var(--crit);
+  --success:    var(--ok);
+  --warning:    var(--warn);
 }
 
 /* ── Utility classes shared across MFEs ──────────────────────────────── */
