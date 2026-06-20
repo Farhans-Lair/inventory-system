@@ -13,11 +13,11 @@ export default defineConfig({
       filename: 'remoteEntry.js',
       dts: false,
       exposes: {
-        './ProductsPage':    './src/ProductsPage.jsx',
-        './LocationsPage':   './src/LocationsPage.jsx',
-        './BatchLotsPage':   './src/BatchLotsPage.jsx',
-        './CycleCountsPage': './src/CycleCountsPage.jsx',
-        './UomPage':         './src/UomPage.jsx',
+        './ProductsPage':    './src/ProductsPageFederated.jsx',
+        './LocationsPage':   './src/LocationsPageFederated.jsx',
+        './BatchLotsPage':   './src/BatchLotsPageFederated.jsx',
+        './CycleCountsPage': './src/CycleCountsPageFederated.jsx',
+        './UomPage':         './src/UomPageFederated.jsx',
       },
       shared: {
         react:              { singleton: true, requiredVersion: '^18.3.1' },

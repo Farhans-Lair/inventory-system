@@ -12,7 +12,7 @@ export default defineConfig({
       name: 'dashboard-mfe',
       filename: 'remoteEntry.js',
       dts: false,
-      exposes: { './DashboardPage': './src/DashboardPage.jsx' },
+      exposes: { './DashboardPage': './src/DashboardPageFederated.jsx' },
       shared: {
         react:              { singleton: true, requiredVersion: '^18.3.1' },
         'react-dom':        { singleton: true, requiredVersion: '^18.3.1' },

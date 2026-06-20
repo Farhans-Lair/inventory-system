@@ -13,8 +13,8 @@ export default defineConfig({
       filename: 'remoteEntry.js',
       dts: false,
       exposes: {
-        './SuppliersPage':      './src/SuppliersPage.jsx',
-        './PurchaseOrdersPage': './src/PurchaseOrdersPage.jsx',
+        './SuppliersPage':      './src/SuppliersPageFederated.jsx',
+        './PurchaseOrdersPage': './src/PurchaseOrdersPageFederated.jsx',
       },
       shared: {
         react:              { singleton: true, requiredVersion: '^18.3.1' },
