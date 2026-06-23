@@ -1,0 +1,7 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# ADD these services to your existing docker-compose.yml
+# Each MFE remote runs as its own nginx container.
+# The shell proxies browser requests to /mfe/* to each container.
+# ═══════════════════════════════════════════════════════════════════════════
+
+  
