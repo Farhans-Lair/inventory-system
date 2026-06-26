@@ -59,16 +59,20 @@ resource "aws_ecs_task_definition" "auth" {
     portMappings = [{ containerPort = 8081, protocol = "tcp" }]
     environment = [
       { name = "DB_USER",       value = var.db_username },
-      { name = "DB_PASS",       value = var.db_password },
       { name = "AUTH_DB_NAME",  value = "authdb" },
-      { name = "JWT_SECRET",    value = var.jwt_secret },
       { name = "COOKIE_SECURE", value = "false" },  # HTTP-only ALB — set to true only after HTTPS/ACM is configured
       { name = "MAIL_HOST",     value = "smtp.gmail.com" },
       { name = "MAIL_PORT",     value = "587" },
       { name = "MAIL_USERNAME", value = var.mail_username },
-      { name = "MAIL_PASSWORD", value = var.mail_password },
       { name = "spring.datasource.url",
-        value = "jdbc:mysql://${aws_db_instance.auth.address}:3306/authdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+        value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/authdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+    ]
+    # Sensitive values pulled from Secrets Manager at task launch — never
+    # appear in plaintext in the task definition, ECS console, or CloudTrail.
+    secrets = [
+      { name = "DB_PASS",       valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "JWT_SECRET",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "MAIL_PASSWORD", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -85,8 +89,20 @@ resource "aws_ecs_service" "auth" {
   name                              = "${local.prefix}-auth"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.auth.arn
-  desired_count                     = 1
+  # Runs 2 tasks instead of 1 — auth-service is on the critical path for
+  # every page load (token validation). With desired_count=1, every
+  # deployment had a window where the old task was stopping/stopped and the
+  # new one hadn't passed its health check yet, causing a real availability
+  # gap (this is what produced the logout-loop and 502s seen during earlier
+  # deployments). minimum_healthy_percent=50 / maximum_percent=100 means ECS
+  # replaces one task at a time without exceeding desired_count — the other
+  # task keeps serving traffic throughout, so there's no extra ENI headroom
+  # needed beyond the 2 already provisioned for this service.
+  desired_count                     = 2
   health_check_grace_period_seconds = 180
+
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 100
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -126,9 +142,7 @@ resource "aws_ecs_task_definition" "inventory" {
     portMappings = [{ containerPort = 8082, protocol = "tcp" }]
     environment = [
       { name = "DB_USER",           value = var.db_username },
-      { name = "DB_PASS",           value = var.db_password },
       { name = "INVENTORY_DB_NAME", value = "inventorydb" },
-      { name = "JWT_SECRET",        value = var.jwt_secret },
       { name = "AWS_REGION",        value = var.aws_region },
       { name = "MINIO_BUCKET",      value = aws_s3_bucket.images.id },
       # Notification service URL — must go through the ALB on ECS (no Docker Compose DNS on AWS).
@@ -136,7 +150,11 @@ resource "aws_ecs_task_definition" "inventory" {
       { name = "NOTIFICATION_SERVICE_URL",
         value = "http://${aws_lb.main.dns_name}" },
       { name = "spring.datasource.url",
-        value = "jdbc:mysql://${aws_db_instance.inventory.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+        value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/inventorydb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+    ]
+    secrets = [
+      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -153,8 +171,14 @@ resource "aws_ecs_service" "inventory" {
   name                              = "${local.prefix}-inventory"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.inventory.arn
-  desired_count                     = 1
+  # Same rationale as auth-service above — inventory-service backs the
+  # dashboard and every stock/product page, so it gets the same 2-task
+  # zero-downtime treatment.
+  desired_count                     = 2
   health_check_grace_period_seconds = 180
+
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 100
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -194,16 +218,18 @@ resource "aws_ecs_task_definition" "notification" {
     portMappings = [{ containerPort = 8083, protocol = "tcp" }]
     environment = [
       { name = "DB_USER",              value = var.db_username },
-      { name = "DB_PASS",              value = var.db_password },
       { name = "NOTIFICATION_DB_NAME", value = "notificationdb" },
-      { name = "JWT_SECRET",           value = var.jwt_secret },
       { name = "MAIL_HOST",            value = "smtp.gmail.com" },
       { name = "MAIL_PORT",            value = "587" },
       { name = "MAIL_USERNAME",        value = var.mail_username },
-      { name = "MAIL_PASSWORD",        value = var.mail_password },
       { name = "ALERT_RECIPIENTS",     value = var.alert_recipients },
       { name = "spring.datasource.url",
-        value = "jdbc:mysql://${aws_db_instance.notification.address}:3306/notificationdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+        value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/notificationdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+    ]
+    secrets = [
+      { name = "DB_PASS",       valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "JWT_SECRET",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "MAIL_PASSWORD", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -261,11 +287,13 @@ resource "aws_ecs_task_definition" "reporting" {
     portMappings = [{ containerPort = 8084, protocol = "tcp" }]
     environment = [
       { name = "DB_USER",           value = var.db_username },
-      { name = "DB_PASS",           value = var.db_password },
       { name = "INVENTORY_DB_NAME", value = "inventorydb" },
-      { name = "JWT_SECRET",        value = var.jwt_secret },
       { name = "spring.datasource.url",
-        value = "jdbc:mysql://${aws_db_instance.inventory.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+        value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+    ]
+    secrets = [
+      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -323,11 +351,13 @@ resource "aws_ecs_task_definition" "supplier" {
     portMappings = [{ containerPort = 8085, protocol = "tcp" }]
     environment = [
       { name = "DB_USER",          value = var.db_username },
-      { name = "DB_PASS",          value = var.db_password },
       { name = "SUPPLIER_DB_NAME", value = "supplierdb" },
-      { name = "JWT_SECRET",       value = var.jwt_secret },
       { name = "spring.datasource.url",
-        value = "jdbc:mysql://${aws_db_instance.supplier.address}:3306/supplierdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+        value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/supplierdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+    ]
+    secrets = [
+      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"

@@ -21,13 +21,11 @@ output "ecr_push_commands" {
 }
 
 output "rds_endpoints" {
-  description = "RDS MySQL endpoints (sensitive)"
+  description = "RDS MySQL endpoint (sensitive) — single shared instance, 4 schemas"
   sensitive   = true
   value = {
-    auth         = aws_db_instance.auth.address
-    inventory    = aws_db_instance.inventory.address
-    notification = aws_db_instance.notification.address
-    supplier     = aws_db_instance.supplier.address
+    shared_instance = aws_db_instance.shared.address
+    schemas         = ["authdb", "inventorydb", "notificationdb", "supplierdb"]
   }
 }
 

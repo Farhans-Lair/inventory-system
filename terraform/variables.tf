@@ -17,7 +17,13 @@ variable "db_password" {
   description = "Master DB password — no @ / \" or spaces"
   sensitive   = true
 }
-variable "db_instance_class" { default = "db.t3.micro" }
+variable "db_instance_class" {
+  default = "db.t3.small"
+  # Previously db.t3.micro × 4 separate instances (one per service). Now a
+  # single instance serves all 4 schemas, so it needs more headroom than a
+  # micro instance gave any one service before — db.t3.small (2 vCPU, 2GB)
+  # still costs less in total than 4 micro instances did combined.
+}
 
 # ── Secrets ────────────────────────────────────────────────────────────────
 variable "jwt_secret" {
@@ -38,7 +44,9 @@ variable "service_memory" { default = 1024 }
 variable "ec2_instance_type" {
   description = "EC2 instance type for ECS container instances"
   default     = "t3.large"
-  # t3.large = 2 vCPU / 8 GB — fits all 6 services with 40% headroom
+  # t3.large = 2 vCPU / 8 GB, 3 ENIs per instance. See ec2_desired_instances
+  # below for how many instances are needed at this size for the current
+  # task count.
   # t3.xlarge = 4 vCPU / 16 GB — recommended for production with buffer
 }
 
@@ -49,16 +57,21 @@ variable "ec2_min_instances" {
 
 variable "ec2_max_instances" {
   description = "Maximum number of EC2 instances the ASG can scale to"
-  default     = 3
+  # Must be >= ec2_desired_instances (now 4). Leaves room for one extra
+  # instance during CPU-driven scale-out before hitting the ceiling.
+  default     = 5
 }
 
 variable "ec2_desired_instances" {
   description = "Initial desired count (ASG takes over after first apply)"
-  # 3 instances required: t3.large supports 3 ENIs per instance.
+  # 4 instances required: t3.large supports 3 ENIs per instance.
   # With awsvpc network mode each ECS task needs 1 ENI.
-  # 3 instances × 3 ENIs = 9 slots - 3 for the instances themselves = 6 for tasks.
-  # We run exactly 6 ECS services so 3 instances is the minimum needed.
-  default     = 3
+  # 4 instances × 3 ENIs = 12 slots - 4 for the instances themselves = 8 for tasks.
+  # Steady-state task count is now 8: auth(2) + inventory(2) + notification(1) +
+  # reporting(1) + supplier(1) + frontend(1). auth and inventory run desired_count=2
+  # so a deployment can replace one task at a time while the other keeps serving
+  # traffic — see deployment_minimum_healthy_percent on those two services in ecs.tf.
+  default     = 4
 }
 
 # ── S3 ─────────────────────────────────────────────────────────────────────

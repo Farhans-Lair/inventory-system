@@ -41,4 +41,8 @@ locals {
     supplier     = { port = 8085, cpu = var.service_cpu, memory = var.service_memory }
     frontend     = { port = 80,   cpu = 256,             memory = 512              }
   }
+
+  # Flat name -> port map, used to scope the ECS security group to exactly
+  # the ports each service listens on instead of opening 0-65535.
+  service_ports = { for name, svc in local.services : name => svc.port }
 }

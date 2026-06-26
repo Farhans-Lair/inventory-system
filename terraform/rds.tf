@@ -1,5 +1,17 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# rds.tf — one RDS MySQL instance per bounded context
+# rds.tf — single shared RDS MySQL instance, one schema per service
+#
+# COST CHANGE: previously 4 separate db.t3.micro instances (auth, inventory,
+# notification, supplier) — each billed 24/7 with its own storage, backups,
+# and monitoring overhead, on top of reporting-service which already reads
+# directly from the inventory schema. Consolidated to ONE instance with 4
+# schemas, each created on first connect via createDatabaseIfNotExist=true
+# in the JDBC URL. This is the right tradeoff at this project's traffic
+# scale — true per-service DB isolation matters more once you have
+# production load where one service's queries could starve another's
+# connection pool. If/when that becomes a real constraint, splitting back
+# out is a matter of re-adding aws_db_instance resources and migrating
+# schemas with mysqldump.
 #
 # deletion_protection = false (dev) — set true before going to production
 #
@@ -25,14 +37,19 @@ resource "aws_db_parameter_group" "mysql8" {
   }
 }
 
-resource "aws_db_instance" "auth" {
-  identifier              = "${local.prefix}-auth-db"
+# Single shared instance for all 4 schemas (authdb, inventorydb,
+# notificationdb, supplierdb). Sized one tier up from db.t3.micro since it
+# now serves what was previously spread across 4 instances — still far
+# cheaper than running 4 separate instances around the clock.
+resource "aws_db_instance" "shared" {
+  identifier              = "${local.prefix}-shared-db"
   engine                  = "mysql"
   engine_version          = "8.0"
   instance_class          = var.db_instance_class
-  allocated_storage       = 20
-  max_allocated_storage   = 100
-  db_name                 = "authdb"
+  allocated_storage       = 30
+  max_allocated_storage   = 300
+  # No single db_name — each service creates its own schema on first
+  # connect via createDatabaseIfNotExist=true in its JDBC URL (see ecs.tf).
   username                = var.db_username
   password                = var.db_password
   db_subnet_group_name    = aws_db_subnet_group.main.name
@@ -43,68 +60,5 @@ resource "aws_db_instance" "auth" {
   deletion_protection     = false
   storage_encrypted       = true
   multi_az                = false
-  tags                    = { Name = "${local.prefix}-auth-db" }
-}
-
-resource "aws_db_instance" "inventory" {
-  identifier              = "${local.prefix}-inventory-db"
-  engine                  = "mysql"
-  engine_version          = "8.0"
-  instance_class          = var.db_instance_class
-  allocated_storage       = 20
-  max_allocated_storage   = 200
-  db_name                 = "inventorydb"
-  username                = var.db_username
-  password                = var.db_password
-  db_subnet_group_name    = aws_db_subnet_group.main.name
-  vpc_security_group_ids  = [aws_security_group.rds.id]
-  parameter_group_name    = aws_db_parameter_group.mysql8.name
-  skip_final_snapshot     = true
-  backup_retention_period = 0
-  deletion_protection     = false
-  storage_encrypted       = true
-  multi_az                = false
-  tags                    = { Name = "${local.prefix}-inventory-db" }
-}
-
-resource "aws_db_instance" "notification" {
-  identifier              = "${local.prefix}-notification-db"
-  engine                  = "mysql"
-  engine_version          = "8.0"
-  instance_class          = var.db_instance_class
-  allocated_storage       = 20
-  max_allocated_storage   = 50
-  db_name                 = "notificationdb"
-  username                = var.db_username
-  password                = var.db_password
-  db_subnet_group_name    = aws_db_subnet_group.main.name
-  vpc_security_group_ids  = [aws_security_group.rds.id]
-  parameter_group_name    = aws_db_parameter_group.mysql8.name
-  skip_final_snapshot     = true
-  backup_retention_period = 0
-  deletion_protection     = false
-  storage_encrypted       = true
-  multi_az                = false
-  tags                    = { Name = "${local.prefix}-notification-db" }
-}
-
-resource "aws_db_instance" "supplier" {
-  identifier              = "${local.prefix}-supplier-db"
-  engine                  = "mysql"
-  engine_version          = "8.0"
-  instance_class          = var.db_instance_class
-  allocated_storage       = 20
-  max_allocated_storage   = 100
-  db_name                 = "supplierdb"
-  username                = var.db_username
-  password                = var.db_password
-  db_subnet_group_name    = aws_db_subnet_group.main.name
-  vpc_security_group_ids  = [aws_security_group.rds.id]
-  parameter_group_name    = aws_db_parameter_group.mysql8.name
-  skip_final_snapshot     = true
-  backup_retention_period = 0
-  deletion_protection     = false
-  storage_encrypted       = true
-  multi_az                = false
-  tags                    = { Name = "${local.prefix}-supplier-db" }
+  tags                    = { Name = "${local.prefix}-shared-db" }
 }

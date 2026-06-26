@@ -30,27 +30,41 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# ── ECS tasks: only accept traffic from the ALB ───────────────────────────
+# ── ECS tasks: only accept traffic from the ALB, only on the ports the ─────
+# services actually listen on. Each service exposes exactly one container
+# port (80 for frontend, 8081-8085 for the backend services) — opening the
+# full 0-65535 range gave the ALB (and every other task) reachability to any
+# port a container might ever bind, intentionally or not. Scoping this down
+# means an unexpected listener inside a container is not reachable at all.
 resource "aws_security_group" "ecs" {
   name        = "${local.prefix}-sg-ecs"
-  description = "ECS tasks - inbound from ALB only"
+  description = "ECS tasks - inbound from ALB only, scoped to service ports"
   vpc_id      = aws_vpc.main.id
 
-  ingress {
-    description     = "All ports from ALB"
-    from_port       = 0
-    to_port         = 65535
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
+  dynamic "ingress" {
+    for_each = local.service_ports
+    content {
+      description     = "${ingress.key} from ALB"
+      from_port       = ingress.value
+      to_port         = ingress.value
+      protocol        = "tcp"
+      security_groups = [aws_security_group.alb.id]
+    }
   }
-  # Allow ECS tasks to talk to each other (for notification alerts)
-  ingress {
-    description = "Inter-service"
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "tcp"
-    self        = true
+
+  # Allow ECS tasks to talk to each other on service ports only
+  # (notification-service alerts are triggered by inventory-service).
+  dynamic "ingress" {
+    for_each = local.service_ports
+    content {
+      description = "${ingress.key} inter-service"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      self        = true
+    }
   }
+
   egress {
     from_port   = 0
     to_port     = 0

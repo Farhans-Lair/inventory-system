@@ -38,18 +38,22 @@ resource "aws_internet_gateway" "main" {
   tags   = { Name = "${local.prefix}-igw" }
 }
 
-# ── Elastic IPs + NAT Gateways (private subnets can reach internet for ECR) ─
+# ── Elastic IP + single NAT Gateway ─────────────────────────────────────────
+# COST TRADEOFF: one NAT Gateway (in public subnet AZ #1) instead of one per AZ.
+# Saves ~half the NAT Gateway hourly charge plus data processing fees, at the
+# cost of: if that AZ has an outage, private-subnet egress (ECR pulls, outbound
+# mail, etc.) breaks for BOTH private subnets, not just one. For a project at
+# this traffic scale that's an acceptable tradeoff; for production-grade
+# multi-AZ resilience, revert to one NAT GW per AZ (see git history).
 resource "aws_eip" "nat" {
-  count  = length(var.public_subnet_cidrs)
   domain = "vpc"
-  tags   = { Name = "${local.prefix}-eip-${count.index + 1}" }
+  tags   = { Name = "${local.prefix}-eip-nat" }
 }
 
 resource "aws_nat_gateway" "main" {
-  count         = length(var.public_subnet_cidrs)
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-  tags          = { Name = "${local.prefix}-nat-${count.index + 1}" }
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id
+  tags          = { Name = "${local.prefix}-nat" }
   depends_on    = [aws_internet_gateway.main]
 }
 
@@ -69,19 +73,18 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# ── Route tables — private (one per AZ, routes through its NAT GW) ─────────
+# ── Route table — private (single table, both AZs route through the one NAT) ─
 resource "aws_route_table" "private" {
-  count  = length(var.private_subnet_cidrs)
   vpc_id = aws_vpc.main.id
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
+    nat_gateway_id = aws_nat_gateway.main.id
   }
-  tags = { Name = "${local.prefix}-rt-private-${count.index + 1}" }
+  tags = { Name = "${local.prefix}-rt-private" }
 }
 
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
+  route_table_id = aws_route_table.private.id
 }

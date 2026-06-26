@@ -42,13 +42,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
   }
 }
 
-# CORS: allow the frontend domain to PUT/GET images
+# CORS: allow only the ALB (or your custom domain, once added) to PUT/GET images.
+# Previously allowed_origins = ["*"], meaning any website on the internet could
+# issue PUT/POST requests against a leaked pre-signed URL. Pre-signed URLs are
+# already time-limited and resource-scoped, but there is no reason to also let
+# arbitrary origins use them — only the app itself ever needs to.
 resource "aws_s3_bucket_cors_configuration" "images" {
   bucket = aws_s3_bucket.images.id
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "PUT", "POST"]
-    allowed_origins = ["*"]   # restrict to your ALB domain in production
+    allowed_origins = [
+      "http://${aws_lb.main.dns_name}",
+      # Add your custom domain here once HTTPS is configured, e.g.:
+      # "https://your-domain.com",
+    ]
     max_age_seconds = 3600
   }
 }

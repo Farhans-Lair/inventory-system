@@ -55,16 +55,33 @@ resource "aws_iam_instance_profile" "ecs_instance" {
 }
 
 # ── Security group for EC2 ECS instances ──────────────────────────────────
+# Previously allowed all 65535 ports from anywhere in the VPC CIDR. Since
+# ECS tasks already run in awsvpc mode with their own dedicated security
+# group (aws_security_group.ecs), the host-level group here only needs to
+# allow the ECS agent's own traffic plus the same service ports — not every
+# port for every address in the VPC (which would include RDS, NAT, and
+# anything else ever added to this network).
 resource "aws_security_group" "ec2_ecs" {
   name        = "${local.prefix}-sg-ec2-ecs"
-  description = "EC2 ECS instances - allow all within VPC and outbound"
+  description = "EC2 ECS instances - scoped to service ports + ECS agent"
   vpc_id      = aws_vpc.main.id
 
-  # Accept all traffic within VPC (tasks communicate via awsvpc ENIs)
+  dynamic "ingress" {
+    for_each = local.service_ports
+    content {
+      description = "${ingress.key} service port (task ENIs on this host)"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidr]
+    }
+  }
+
+  # ECS agent <-> ECS service control plane traffic between instances
   ingress {
-    description = "All intra-VPC traffic"
-    from_port   = 0
-    to_port     = 65535
+    description = "ECS agent introspection (51678/51679)"
+    from_port   = 51678
+    to_port     = 51679
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
   }
