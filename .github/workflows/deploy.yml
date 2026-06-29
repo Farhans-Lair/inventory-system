@@ -1,13 +1,4 @@
-﻿name: Verify all MFE builds locally (smoke check)
-  run: |
-    for dir in frontend/dashboard-mfe frontend/products-mfe frontend/stock-mfe \
-                frontend/supplier-mfe frontend/reporting-mfe frontend/shell; do
-      echo "Checking $dir..."
-      cd $dir && npm ci && npm run build && cd $GITHUB_WORKSPACE
-    done
-
-
-name: InventoryMS Deploy
+﻿name: InventoryMS Deploy
 # cache-bust
 
 on:

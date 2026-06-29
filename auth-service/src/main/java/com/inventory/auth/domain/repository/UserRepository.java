@@ -1,5 +1,6 @@
 package com.inventory.auth.domain.repository;
 
+import com.inventory.auth.domain.model.Role;
 import com.inventory.auth.domain.model.User;
 import java.util.List;
 import java.util.Optional;
@@ -11,4 +12,5 @@ public interface UserRepository {
     boolean existsByEmail(String email);
     List<User> findAll();
     void deleteById(String id);
+    long countByRole(Role role);
 }

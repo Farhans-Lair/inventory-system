@@ -28,11 +28,13 @@ public class AuthService {
     private final EmailService           emailService;
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int MAX_ADMIN_COUNT = 2;
 
     @Transactional
     public OtpRequestResponse initiateSignup(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail()))
             throw new RuntimeException("An account with this email already exists.");
+        enforceAdminLimit(request.getRole());
         otpTokenRepository.deleteByEmail(request.getEmail());
         userRepository.findByEmail(request.getEmail()).ifPresent(u -> {
             if (!u.isActive()) userRepository.deleteById(u.getId());
@@ -122,11 +124,24 @@ public class AuthService {
     public UserResponse createUser(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail()))
             throw new RuntimeException("Email already in use.");
+        enforceAdminLimit(request.getRole());
         User user = User.builder()
                 .email(request.getEmail()).fullName(request.getFullName())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole()).active(true).build();
         return toResponse(userRepository.save(user));
+    }
+
+    /**
+     * Caps the number of ADMIN accounts in the system at MAX_ADMIN_COUNT.
+     * Counts all rows with role=ADMIN (active or pending-verification) so that
+     * concurrent in-flight signups can't bypass the cap before they're verified.
+     */
+    private void enforceAdminLimit(Role role) {
+        if (role == Role.ADMIN && userRepository.countByRole(Role.ADMIN) >= MAX_ADMIN_COUNT) {
+            throw new RuntimeException(
+                    "Maximum number of admin accounts (" + MAX_ADMIN_COUNT + ") has already been reached.");
+        }
     }
 
     public List<UserResponse> getAllUsers() {
