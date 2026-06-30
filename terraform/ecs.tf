@@ -355,6 +355,11 @@ resource "aws_ecs_task_definition" "supplier" {
     environment = [
       { name = "DB_USER",          value = var.db_username },
       { name = "SUPPLIER_DB_NAME", value = "supplierdb" },
+      # Used by receiveGoods() to push an INBOUND stock movement into
+      # inventory-service when a GRN is recorded — must go through the ALB
+      # since there is no service-discovery DNS on ECS.
+      { name = "INVENTORY_SERVICE_URL",
+        value = "http://${aws_lb.main.dns_name}" },
       { name = "spring.datasource.url",
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/supplierdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]

@@ -1,5 +1,6 @@
 package com.inventory.supplier.infrastructure.security;
 
+import com.inventory.shared.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,7 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtUtil jwtUtil;
 
     @Override
     protected void doFilterInternal(HttpServletRequest req,
@@ -30,8 +31,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String token = extractToken(req);
 
-        if (token != null && jwtTokenProvider.isValid(token)) {
-            Claims claims = jwtTokenProvider.validateAndParse(token);
+        if (token != null && jwtUtil.isValid(token)) {
+            Claims claims = jwtUtil.validateAndParse(token);
             req.setAttribute("claims", claims);
             String role = claims.get("role", String.class);
             var auth = new UsernamePasswordAuthenticationToken(
@@ -45,14 +46,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     /**
      * Token extraction priority:
-     * 1. Authorization: Bearer header — tab-isolated sessionStorage token
+     * 1. Authorization: Bearer header — tab-isolated token from sessionStorage
      * 2. access_token cookie — backward-compatible fallback for local dev
      */
     private String extractToken(HttpServletRequest req) {
+        // 1. Authorization header first (tab-isolated sessionStorage token)
         String header = req.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             return header.substring(7);
         }
+        // 2. Cookie fallback
         if (req.getCookies() != null) {
             for (Cookie c : req.getCookies()) {
                 if ("access_token".equals(c.getName())) {

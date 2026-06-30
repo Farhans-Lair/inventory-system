@@ -5,7 +5,7 @@ import com.inventory.auth.domain.model.*;
 import com.inventory.auth.domain.model.OtpToken.OtpPurpose;
 import com.inventory.auth.domain.repository.*;
 import com.inventory.auth.infrastructure.email.EmailService;
-import com.inventory.auth.infrastructure.security.JwtTokenProvider;
+import com.inventory.shared.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,7 +23,7 @@ public class AuthService {
     private final UserRepository         userRepository;
     private final OtpTokenRepository     otpTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final JwtTokenProvider       jwtTokenProvider;
+    private final JwtUtil                jwtUtil;
     private final PasswordEncoder        passwordEncoder;
     private final EmailService           emailService;
 
@@ -178,7 +178,7 @@ public class AuthService {
     }
 
     public TokenPairResponse buildTokenPair(User user) {
-        String access  = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail(), user.getRole());
+        String access  = jwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
         String refresh = UUID.randomUUID().toString();
         refreshTokenRepository.save(RefreshToken.builder()
                 .token(refresh).userId(user.getId())

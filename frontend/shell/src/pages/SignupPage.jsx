@@ -2,8 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/client'
 
+// Public self-signup is intentionally limited to non-admin roles. The very
+// first ADMIN account in a fresh deployment is still created through this
+// same form (server allows it only when zero admins exist yet — see
+// AuthService.enforcePublicSignupAdminRule). After that, admin accounts can
+// only be created by an existing admin via the Users page — never by
+// self-elevation through public signup.
 const ROLES = [
-  { value: 'ADMIN',             label: 'Administrator',     desc: 'Full system access, including user management' },
   { value: 'WAREHOUSE_MANAGER', label: 'Warehouse Manager',  desc: 'Manage stock, suppliers and purchase orders' },
   { value: 'STAKEHOLDER',       label: 'Stakeholder',        desc: 'View-only access to reports and dashboards' },
 ]

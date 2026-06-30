@@ -2,7 +2,7 @@ package com.inventory.auth.interfaces.rest;
 
 import com.inventory.auth.application.AuthService;
 import com.inventory.auth.application.dto.*;
-import com.inventory.auth.infrastructure.security.JwtTokenProvider;
+import com.inventory.shared.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -21,8 +21,8 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService      authService;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final AuthService authService;
+    private final JwtUtil     jwtUtil;
 
     @Value("${cookie.secure:false}")
     private boolean cookieSecure;
@@ -98,8 +98,8 @@ public class AuthController {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
             try {
-                if (jwtTokenProvider.isValid(token)) {
-                    Claims claims = jwtTokenProvider.validateAndParse(token);
+                if (jwtUtil.isValid(token)) {
+                    Claims claims = jwtUtil.validateAndParse(token);
                     authService.logout(claims.getSubject());
                 }
             } catch (Exception ignored) {}

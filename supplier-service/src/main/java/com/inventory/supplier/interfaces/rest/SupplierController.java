@@ -43,7 +43,8 @@ public class SupplierController {
         return ResponseEntity.ok(supplierService.getGrnsForPo(poId)); }
     @PostMapping("/api/purchase-orders/{poId}/grn")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
-    public ResponseEntity<GrnDto> receiveGoods(@PathVariable String poId, @RequestBody GrnDto dto) {
+    public ResponseEntity<GrnDto> receiveGoods(@PathVariable String poId, @RequestBody GrnDto dto,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         dto.setPoId(poId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.receiveGoods(dto)); }
+        return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.receiveGoods(dto, authHeader)); }
 }

@@ -1,5 +1,6 @@
 package com.inventory.stock.infrastructure.security;
 
+import com.inventory.shared.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,7 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtUtil jwtUtil;
 
     @Override
     protected void doFilterInternal(HttpServletRequest req,
@@ -30,8 +31,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String token = extractToken(req);
 
-        if (token != null && jwtTokenProvider.isValid(token)) {
-            Claims claims = jwtTokenProvider.validateAndParse(token);
+        if (token != null && jwtUtil.isValid(token)) {
+            Claims claims = jwtUtil.validateAndParse(token);
             req.setAttribute("claims", claims);
             String role = claims.get("role", String.class);
             var auth = new UsernamePasswordAuthenticationToken(
