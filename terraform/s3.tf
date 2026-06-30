@@ -60,3 +60,61 @@ resource "aws_s3_bucket_cors_configuration" "images" {
     max_age_seconds = 3600
   }
 }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Reports bucket — compliance archival of generated report files (CSV exports
+# etc.). Separate from the images bucket: different access pattern (write-once
+# from backend services only, never read directly by the browser), and a
+# separate bucket keeps retention/lifecycle policy changes here from ever
+# risking the product-images bucket.
+#
+# Object layout: reports/<module>/<reportName>-<timestamp>.<ext>
+# e.g. reports/inventory-service/products-export-20260630-141200.csv
+#      reports/reporting-service/valuation-export-20260630-141530.csv
+# ═══════════════════════════════════════════════════════════════════════════
+
+resource "aws_s3_bucket" "reports" {
+  bucket        = var.report_bucket_name
+  force_destroy = false
+  tags          = { Name = var.report_bucket_name }
+}
+
+resource "aws_s3_bucket_versioning" "reports" {
+  bucket = aws_s3_bucket.reports.id
+  # Versioning enabled — generated reports are never overwritten in practice
+  # (each upload gets a unique timestamped key), but this guards against
+  # accidental deletes for compliance retention.
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "reports" {
+  bucket = aws_s3_bucket.reports.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Block all public access — reports are written by backend services only and
+# are never served directly to browsers.
+resource "aws_s3_bucket_public_access_block" "reports" {
+  bucket                  = aws_s3_bucket.reports.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# No expiry/lifecycle rule on the report objects themselves — compliance
+# archival means these are intentionally retained, not auto-deleted. Only
+# clean up stray incomplete multipart uploads.
+resource "aws_s3_bucket_lifecycle_configuration" "reports" {
+  bucket = aws_s3_bucket.reports.id
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+    filter {}
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+}

@@ -145,6 +145,7 @@ resource "aws_ecs_task_definition" "inventory" {
       { name = "INVENTORY_DB_NAME", value = "inventorydb" },
       { name = "AWS_REGION",        value = var.aws_region },
       { name = "MINIO_BUCKET",      value = aws_s3_bucket.images.id },
+      { name = "REPORTS_BUCKET",    value = aws_s3_bucket.reports.id },
       # Notification service URL — must go through the ALB on ECS (no Docker Compose DNS on AWS).
       # StockService uses this to send low-stock and overstock alerts.
       { name = "NOTIFICATION_SERVICE_URL",
@@ -288,6 +289,8 @@ resource "aws_ecs_task_definition" "reporting" {
     environment = [
       { name = "DB_USER",           value = var.db_username },
       { name = "INVENTORY_DB_NAME", value = "inventorydb" },
+      { name = "AWS_REGION",        value = var.aws_region },
+      { name = "REPORTS_BUCKET",    value = aws_s3_bucket.reports.id },
       { name = "spring.datasource.url",
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]

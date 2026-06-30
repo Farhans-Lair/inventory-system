@@ -78,3 +78,8 @@ variable "ec2_desired_instances" {
 variable "image_bucket_name" {
   default = "inventoryms-product-images-prod"
 }
+
+variable "report_bucket_name" {
+  description = "S3 bucket for compliance archival of generated report files (CSV exports etc.), organized into reports/<module>/ folders"
+  default     = "inventoryms-reports-prod"
+}

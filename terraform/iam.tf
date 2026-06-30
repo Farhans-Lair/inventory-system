@@ -75,3 +75,23 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
     }]
   })
 }
+
+# Grants inventory-service and reporting-service (both run under this shared
+# task role) write/read access to archive generated CSV reports. No delete
+# permission here on purpose — reports are compliance records and the
+# application has no business deleting them; only Put/Get/List are needed.
+resource "aws_iam_role_policy" "ecs_task_s3_reports" {
+  name = "${local.prefix}-ecs-s3-reports"
+  role = aws_iam_role.ecs_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["s3:GetObject","s3:PutObject","s3:ListBucket"]
+      Resource = [
+        aws_s3_bucket.reports.arn,
+        "${aws_s3_bucket.reports.arn}/*"
+      ]
+    }]
+  })
+}

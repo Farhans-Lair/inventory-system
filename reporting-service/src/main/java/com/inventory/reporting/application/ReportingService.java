@@ -1,6 +1,7 @@
 package com.inventory.reporting.application;
 import com.inventory.reporting.application.dto.*;
 import com.inventory.reporting.domain.model.MovementView;
+import com.inventory.reporting.infrastructure.storage.ReportStorageService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import java.util.stream.Collectors;
 @Service @RequiredArgsConstructor
 public class ReportingService {
     private final EntityManager em;
+    private final ReportStorageService reportStorageService;
 
     @SuppressWarnings("unchecked")
     public List<StockValuationRow> getStockValuation() {
@@ -68,7 +70,11 @@ public class ReportingService {
             r.getCostPrice().toPlainString(), r.getTotalCostValue().toPlainString(),
             r.getSellingPrice().toPlainString(), r.getTotalSellingValue().toPlainString()))
             .append("\n"));
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] csv = sb.toString().getBytes(StandardCharsets.UTF_8);
+        // Compliance: archive every generated report to S3 under its own module
+        // folder. A storage failure must never block the user's download.
+        reportStorageService.uploadReport("reporting-service", "valuation-export", csv, "csv");
+        return csv;
     }
 
     private String safe(String s) { if (s==null) return ""; return s.contains(",") ? "\""+s.replace("\"","\"\"")+"\""  : s; }
