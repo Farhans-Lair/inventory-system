@@ -4,6 +4,7 @@ import com.inventory.reporting.domain.model.MovementView;
 import com.inventory.reporting.infrastructure.storage.ReportStorageService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,7 @@ public class ReportingService {
     private final ReportStorageService reportStorageService;
 
     @SuppressWarnings("unchecked")
+    @Cacheable("valuation")
     public List<StockValuationRow> getStockValuation() {
         List<Object[]> rows = em.createNativeQuery(
             "SELECT p.id, p.sku, p.name, p.category, COALESCE(SUM(sl.quantity),0), p.cost_price, p.selling_price " +

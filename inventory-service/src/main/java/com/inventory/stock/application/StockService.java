@@ -6,6 +6,8 @@ import com.inventory.stock.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -46,6 +48,7 @@ public class StockService {
     private String notificationServiceUrl;
 
     // ── Dashboard summary ──────────────────────────────────────────────────
+    @Cacheable("stockLevels")
     public StockSummaryDto getSummary() {
         return StockSummaryDto.builder()
                 .totalProducts(productRepository.findAll().stream().filter(Product::isActive).count())
@@ -60,6 +63,7 @@ public class StockService {
     }
 
     // ── Stock level queries ────────────────────────────────────────────────
+    @Cacheable("stockLevels")
     public List<StockLevelDto> getAllLevels()                 { return stockLevelRepository.findAll().stream().map(this::toLevelDto).collect(Collectors.toList()); }
     public List<StockLevelDto> getLevelsByProduct(String id) { return stockLevelRepository.findByProductId(id).stream().map(this::toLevelDto).collect(Collectors.toList()); }
     public List<StockLevelDto> getLevelsByLocation(String id){ return stockLevelRepository.findByLocationId(id).stream().map(this::toLevelDto).collect(Collectors.toList()); }
@@ -68,6 +72,7 @@ public class StockService {
     public List<StockLevelDto> getOverstock()                { return stockLevelRepository.findOverstockLevels().stream().map(this::toLevelDto).collect(Collectors.toList()); }
 
     @Transactional
+    @CacheEvict(value = "stockLevels", allEntries = true)
     public StockLevelDto updateThresholds(String productId, String locationId, int minQty, int maxQty) {
         StockLevel sl = getOrCreateLevel(productId, locationId);
         sl.setMinQuantity(minQty);
@@ -77,6 +82,7 @@ public class StockService {
 
     // ── B1+B2+B5: Record movement with overstock alert + reason codes ──────
     @Transactional
+    @CacheEvict(value = "stockLevels", allEntries = true)
     public StockMovementResponse recordMovement(StockMovementRequest req, String performedBy) {
         Product product = productRepository.findById(req.getProductId())
                 .orElseThrow(() -> new RuntimeException("Product not found"));
@@ -136,6 +142,7 @@ public class StockService {
 
     // ── B1: Stock reservations ─────────────────────────────────────────────
     @Transactional
+    @CacheEvict(value = "stockLevels", allEntries = true)
     public StockReservationDto createReservation(StockReservationDto dto) {
         Product  product  = productRepository.findById(dto.getProductId()).orElseThrow(() -> new RuntimeException("Product not found"));
         Location location = locationRepository.findById(dto.getLocationId()).orElseThrow(() -> new RuntimeException("Location not found"));

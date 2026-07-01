@@ -6,6 +6,8 @@ import com.inventory.stock.domain.repository.*;
 import com.inventory.stock.infrastructure.barcode.BarcodeService;
 import com.inventory.stock.infrastructure.storage.MinioStorageService;
 import com.inventory.stock.infrastructure.storage.ReportStorageService;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ public class ProductService {
     private final BarcodeService           barcodeService;
 
     // ── CRUD ────────────────────────────────────────────────────────────
+    @Cacheable("products")
     public List<ProductDto> getAll() {
         return productRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
     }
@@ -38,6 +41,7 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("Product not found: " + id)));
     }
 
+    @CacheEvict(value = "products", allEntries = true)
     public ProductDto create(ProductDto dto) {
         if (productRepository.existsBySku(dto.getSku()))
             throw new RuntimeException("SKU already exists: " + dto.getSku());
@@ -52,6 +56,7 @@ public class ProductService {
         return toDto(productRepository.save(p));
     }
 
+    @CacheEvict(value = "products", allEntries = true)
     public ProductDto update(String id, ProductDto dto) {
         Product p = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + id));
@@ -79,6 +84,7 @@ public class ProductService {
 
     // ── A1: Image upload ─────────────────────────────────────────────────
     @Transactional
+    @CacheEvict(value = "products", allEntries = true)
     public ProductDto uploadImage(String productId, MultipartFile file) {
         Product p = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
@@ -106,6 +112,7 @@ public class ProductService {
     }
 
     // ── A3: CSV import / export (enhanced with new fields) ────────────────
+    @CacheEvict(value = "products", allEntries = true)
     public List<ProductDto> importFromCsv(MultipartFile file) throws IOException {
         List<ProductDto> imported = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(
