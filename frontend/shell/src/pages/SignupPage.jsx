@@ -1,16 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/client'
 
-// Public self-signup is intentionally limited to non-admin roles. The very
-// first ADMIN account in a fresh deployment is still created through this
-// same form (server allows it only when zero admins exist yet — see
-// AuthService.enforcePublicSignupAdminRule). After that, admin accounts can
-// only be created by an existing admin via the Users page — never by
-// self-elevation through public signup.
-const ROLES = [
+// Public self-signup is limited to non-admin roles UNLESS this is the very
+// first account (zero admins exist yet — server bootstrap). The server
+// enforces this rule independently; showing the option in the UI is just a
+// convenience that matches the backend behaviour.
+const NON_ADMIN_ROLES = [
   { value: 'WAREHOUSE_MANAGER', label: 'Warehouse Manager',  desc: 'Manage stock, suppliers and purchase orders' },
   { value: 'STAKEHOLDER',       label: 'Stakeholder',        desc: 'View-only access to reports and dashboards' },
+]
+const ALL_ROLES = [
+  { value: 'ADMIN',             label: 'Administrator',      desc: 'Full system access — only available when no admin exists yet' },
+  ...NON_ADMIN_ROLES,
 ]
 
 export default function SignupPage() {
@@ -19,6 +21,22 @@ export default function SignupPage() {
   const [otp,   setOtp]   = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
+  // Bootstrap probe — shows Admin role only when zero admins exist yet
+  const [adminExists, setAdminExists] = useState(true) // default true = hide admin option (safe default)
+  const [rolesLoaded, setRolesLoaded] = useState(false)
+
+  useEffect(() => {
+    authApi.adminExists()
+      .then(r => {
+        setAdminExists(r.data.adminExists)
+        // If no admin exists yet, pre-select Admin to make it obvious for the first user
+        if (!r.data.adminExists) setForm(f => ({ ...f, role: 'ADMIN' }))
+      })
+      .catch(() => setAdminExists(true)) // on any error, stay safe: hide admin option
+      .finally(() => setRolesLoaded(true))
+  }, [])
+
+  const ROLES = adminExists ? NON_ADMIN_ROLES : ALL_ROLES
   const [busy,  setBusy]  = useState(false)
   const navigate = useNavigate()
 

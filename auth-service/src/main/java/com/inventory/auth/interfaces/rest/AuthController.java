@@ -27,6 +27,22 @@ public class AuthController {
     @Value("${cookie.secure:false}")
     private boolean cookieSecure;
 
+    /**
+     * Unauthenticated bootstrap probe — used by the signup page to decide whether
+     * to show the Administrator role option. Returns {"adminExists": true/false}.
+     *
+     * This endpoint is intentionally public (no auth required) because:
+     * - It reveals only a boolean, not any user data
+     * - The signup page needs it before any session exists
+     * - The server-side enforcePublicSignupAdminRule() is the real security gate —
+     *   even if someone calls this API directly and lies about the result, the
+     *   backend will still reject an admin signup when one already exists
+     */
+    @GetMapping("/admin-exists")
+    public ResponseEntity<java.util.Map<String, Boolean>> adminExists() {
+        return ResponseEntity.ok(java.util.Map.of("adminExists", authService.adminExists()));
+    }
+
     @PostMapping("/signup")
     public ResponseEntity<OtpRequestResponse> signup(@RequestBody @Valid SignupRequest req) {
         return ResponseEntity.ok(authService.initiateSignup(req));

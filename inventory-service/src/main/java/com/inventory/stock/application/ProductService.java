@@ -5,6 +5,7 @@ import com.inventory.stock.domain.model.*;
 import com.inventory.stock.domain.repository.*;
 import com.inventory.stock.infrastructure.barcode.BarcodeService;
 import com.inventory.stock.infrastructure.storage.MinioStorageService;
+import com.inventory.stock.infrastructure.storage.ReportStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class ProductService {
     private final StockLevelRepository     stockLevelRepository;
     private final ProductVariantRepository variantRepository;
     private final MinioStorageService      storageService;
+    private final ReportStorageService     reportStorageService;
     private final BarcodeService           barcodeService;
 
     // ── CRUD ────────────────────────────────────────────────────────────
@@ -143,7 +145,11 @@ public class ProductService {
                     String.valueOf(p.getTotalQuantity())
             )).append("\n");
         }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] csv = sb.toString().getBytes(StandardCharsets.UTF_8);
+        // Compliance: archive every generated report to S3 under its own module
+        // folder. A storage failure must never block the user's download.
+        reportStorageService.uploadReport("inventory-service", "products-export", csv, "csv");
+        return csv;
     }
 
     // ── A5: Variants ─────────────────────────────────────────────────────

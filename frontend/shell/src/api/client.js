@@ -108,6 +108,8 @@ export const authApi = {
   verifySignup:     d  => client.post('/api/auth/verify-signup', d),
   initiateLogin:    d  => client.post('/api/auth/login', d),
   verifyLogin:      d  => client.post('/api/auth/verify-login', d),
+  // Bootstrap probe — called by signup page to decide whether to show Admin role
+  adminExists:      () => client.get('/api/auth/admin-exists'),
   forgotPassword:   d  => client.post('/api/auth/forgot-password', d),
   resetPassword:    d  => client.post('/api/auth/reset-password', d),
   logout:           () => client.post('/api/auth/logout'),

@@ -49,6 +49,7 @@ public class SecurityConfig {
                     "/api/auth/reset-password",
                     "/api/auth/refresh",
                     "/api/auth/logout",   // Must be permitAll — called when token is expired or missing
+                    "/api/auth/admin-exists" // Bootstrap probe — shows admin role on signup page only when no admin exists
                     "/actuator/health",
                     "/actuator/health/readiness",  // ALB health check target
                     "/actuator/health/liveness",   // ALB liveness check

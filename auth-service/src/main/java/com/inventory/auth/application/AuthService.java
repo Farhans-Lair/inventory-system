@@ -34,7 +34,7 @@ public class AuthService {
     public OtpRequestResponse initiateSignup(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail()))
             throw new RuntimeException("An account with this email already exists.");
-        enforceAdminLimit(request.getRole());
+        enforcePublicSignupAdminRule(request.getRole());
         otpTokenRepository.deleteByEmail(request.getEmail());
         userRepository.findByEmail(request.getEmail()).ifPresent(u -> {
             if (!u.isActive()) userRepository.deleteById(u.getId());
@@ -133,14 +133,37 @@ public class AuthService {
     }
 
     /**
+     * Bootstrap probe: returns true if at least one ADMIN account already exists.
+     * Called by the public /api/auth/admin-exists endpoint so the signup page can
+     * decide whether to show the Administrator role option.
+     */
+    public boolean adminExists() {
+        return userRepository.countByRole(Role.ADMIN) > 0;
+    }
+
+    /**
      * Caps the number of ADMIN accounts in the system at MAX_ADMIN_COUNT.
-     * Counts all rows with role=ADMIN (active or pending-verification) so that
-     * concurrent in-flight signups can't bypass the cap before they're verified.
+     * Used on the admin-only createUser path only.
      */
     private void enforceAdminLimit(Role role) {
         if (role == Role.ADMIN && userRepository.countByRole(Role.ADMIN) >= MAX_ADMIN_COUNT) {
             throw new RuntimeException(
                     "Maximum number of admin accounts (" + MAX_ADMIN_COUNT + ") has already been reached.");
+        }
+    }
+
+    /**
+     * Security rule for the *public* /api/auth/signup endpoint:
+     * self-registration as ADMIN is only allowed when zero admins exist (bootstrap).
+     * Once any admin exists, further admin accounts must be created by an existing
+     * admin via POST /api/users, which is gated by @PreAuthorize("hasRole('ADMIN')")
+     * and subject to enforceAdminLimit above.
+     */
+    private void enforcePublicSignupAdminRule(Role role) {
+        if (role == Role.ADMIN && userRepository.countByRole(Role.ADMIN) > 0) {
+            throw new RuntimeException(
+                    "Admin accounts can only be created by an existing administrator. " +
+                    "Please sign up as a different role and ask an admin to grant access.");
         }
     }
 
