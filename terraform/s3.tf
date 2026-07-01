@@ -42,6 +42,27 @@ resource "aws_s3_bucket_lifecycle_configuration" "images" {
   }
 }
 
+resource "aws_s3_bucket_versioning" "images" {
+  bucket = aws_s3_bucket.images.id
+  # Versioning protects against accidental overwrites and deletes of product
+  # images — a DELETE on a versioned object creates a delete marker rather
+  # than erasing the file permanently, so you can recover within 30 days.
+  versioning_configuration { status = "Enabled" }
+}
+
+# Non-current (overwritten/deleted) image versions expire after 30 days to
+# avoid unbounded storage accumulation while still providing a recovery window.
+resource "aws_s3_bucket_lifecycle_configuration" "images" {
+  bucket = aws_s3_bucket.images.id
+  rule {
+    id     = "expire-old-image-versions"
+    status = "Enabled"
+    filter {}
+    noncurrent_version_expiration { noncurrent_days = 30 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+}
+
 # CORS: allow only the ALB (or your custom domain, once added) to PUT/GET images.
 # Previously allowed_origins = ["*"], meaning any website on the internet could
 # issue PUT/POST requests against a leaked pre-signed URL. Pre-signed URLs are

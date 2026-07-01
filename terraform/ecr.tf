@@ -16,7 +16,14 @@ locals {
 resource "aws_ecr_repository" "services" {
   for_each             = toset(local.ecr_repos)
   name                 = "${local.prefix}/${each.key}"
-  image_tag_mutability = "MUTABLE"
+  # IMMUTABLE: once a tag is pushed, it cannot be overwritten.
+  # CI already pushes with a git-SHA tag (e.g. 4310f30f...) which is
+  # content-addressed and can never accidentally clobber an existing image.
+  # This eliminates a supply-chain risk where a compromised pipeline could
+  # silently push a backdoored image under the same tag.
+  # The `latest` convenience tag is removed from CI push commands since it
+  # would conflict with IMMUTABLE — ECS task definitions reference SHA tags.
+  image_tag_mutability = "IMMUTABLE"
   force_delete         = true   # allows destroy even when images exist
 
   image_scanning_configuration {

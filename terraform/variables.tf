@@ -83,3 +83,17 @@ variable "report_bucket_name" {
   description = "S3 bucket for compliance archival of generated report files (CSV exports etc.), organized into reports/<module>/ folders"
   default     = "inventoryms-reports-prod"
 }
+
+# ── Image tag ──────────────────────────────────────────────────────────────
+variable "image_tag" {
+  description = <<-EOT
+    Docker image tag used by all ECS task definitions. Defaults to "latest"
+    for the initial Terraform apply (before any CI run has pushed a SHA-tagged
+    image). After the first CI deploy, CI overrides this with the git commit
+    SHA via -var="image_tag=<sha>" so each deployment is fully traceable and
+    immutable. Because ECR repos are now IMMUTABLE, the same SHA tag can never
+    be silently overwritten — a failed/malicious push cannot replace an image
+    that ECS is already running.
+  EOT
+  default     = "latest"
+}

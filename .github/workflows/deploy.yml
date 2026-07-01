@@ -153,11 +153,37 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" -t "${ECR_BASE}/auth-service:latest" ./auth-service
+          docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" ./auth-service
           docker push "${ECR_BASE}/auth-service:${{ github.sha }}"
-          docker push "${ECR_BASE}/auth-service:latest"
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-auth --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: |
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services inventoryms-prod-auth --region $AWS_REGION \
+            --query "services[0].taskDefinition" --output text 2>/dev/null)
+          if [ -z "$TASK_DEF_ARN" ] || [ "$TASK_DEF_ARN" = "None" ]; then
+            echo "::warning::ECS service inventoryms-prod-auth not found, skipping"
+            exit 0
+          fi
+          NEW_IMAGE="${ECR_BASE}/auth-service:${{ github.sha }}"
+          NEW_TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
+            --query "taskDefinition" --output json | \
+            jq --arg img "$NEW_IMAGE" \
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+                .containerDefinitions[0].image = $img') 
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --region $AWS_REGION \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service inventoryms-prod-auth \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --region $AWS_REGION || echo "::warning::ECS update-service failed"
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-auth --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
@@ -196,11 +222,37 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" -t "${ECR_BASE}/inventory-service:latest" ./inventory-service
+          docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" ./inventory-service
           docker push "${ECR_BASE}/inventory-service:${{ github.sha }}"
-          docker push "${ECR_BASE}/inventory-service:latest"
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-inventory --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: |
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services inventoryms-prod-inventory --region $AWS_REGION \
+            --query "services[0].taskDefinition" --output text 2>/dev/null)
+          if [ -z "$TASK_DEF_ARN" ] || [ "$TASK_DEF_ARN" = "None" ]; then
+            echo "::warning::ECS service inventoryms-prod-inventory not found, skipping"
+            exit 0
+          fi
+          NEW_IMAGE="${ECR_BASE}/inventory-service:${{ github.sha }}"
+          NEW_TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
+            --query "taskDefinition" --output json | \
+            jq --arg img "$NEW_IMAGE" \
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+                .containerDefinitions[0].image = $img') 
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --region $AWS_REGION \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service inventoryms-prod-inventory \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --region $AWS_REGION || echo "::warning::ECS update-service failed"
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-inventory --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
@@ -239,11 +291,37 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" -t "${ECR_BASE}/notification-service:latest" ./notification-service
+          docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" ./notification-service
           docker push "${ECR_BASE}/notification-service:${{ github.sha }}"
-          docker push "${ECR_BASE}/notification-service:latest"
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-notification --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: |
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services inventoryms-prod-notification --region $AWS_REGION \
+            --query "services[0].taskDefinition" --output text 2>/dev/null)
+          if [ -z "$TASK_DEF_ARN" ] || [ "$TASK_DEF_ARN" = "None" ]; then
+            echo "::warning::ECS service inventoryms-prod-notification not found, skipping"
+            exit 0
+          fi
+          NEW_IMAGE="${ECR_BASE}/notification-service:${{ github.sha }}"
+          NEW_TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
+            --query "taskDefinition" --output json | \
+            jq --arg img "$NEW_IMAGE" \
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+                .containerDefinitions[0].image = $img') 
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --region $AWS_REGION \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service inventoryms-prod-notification \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --region $AWS_REGION || echo "::warning::ECS update-service failed"
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-notification --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
@@ -282,11 +360,37 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" -t "${ECR_BASE}/reporting-service:latest" ./reporting-service
+          docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" ./reporting-service
           docker push "${ECR_BASE}/reporting-service:${{ github.sha }}"
-          docker push "${ECR_BASE}/reporting-service:latest"
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-reporting --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: |
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services inventoryms-prod-reporting --region $AWS_REGION \
+            --query "services[0].taskDefinition" --output text 2>/dev/null)
+          if [ -z "$TASK_DEF_ARN" ] || [ "$TASK_DEF_ARN" = "None" ]; then
+            echo "::warning::ECS service inventoryms-prod-reporting not found, skipping"
+            exit 0
+          fi
+          NEW_IMAGE="${ECR_BASE}/reporting-service:${{ github.sha }}"
+          NEW_TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
+            --query "taskDefinition" --output json | \
+            jq --arg img "$NEW_IMAGE" \
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+                .containerDefinitions[0].image = $img') 
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --region $AWS_REGION \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service inventoryms-prod-reporting \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --region $AWS_REGION || echo "::warning::ECS update-service failed"
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-reporting --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
@@ -325,11 +429,37 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" -t "${ECR_BASE}/supplier-service:latest" ./supplier-service
+          docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" ./supplier-service
           docker push "${ECR_BASE}/supplier-service:${{ github.sha }}"
-          docker push "${ECR_BASE}/supplier-service:latest"
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-supplier --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: |
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services inventoryms-prod-supplier --region $AWS_REGION \
+            --query "services[0].taskDefinition" --output text 2>/dev/null)
+          if [ -z "$TASK_DEF_ARN" ] || [ "$TASK_DEF_ARN" = "None" ]; then
+            echo "::warning::ECS service inventoryms-prod-supplier not found, skipping"
+            exit 0
+          fi
+          NEW_IMAGE="${ECR_BASE}/supplier-service:${{ github.sha }}"
+          NEW_TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
+            --query "taskDefinition" --output json | \
+            jq --arg img "$NEW_IMAGE" \
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+                .containerDefinitions[0].image = $img') 
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --region $AWS_REGION \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service inventoryms-prod-supplier \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --region $AWS_REGION || echo "::warning::ECS update-service failed"
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-supplier --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
@@ -410,13 +540,38 @@ jobs:
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
-          docker build -t "${ECR_BASE}/frontend:${{ github.sha }}" \
-                       -t "${ECR_BASE}/frontend:latest" .
+          docker build -t "${ECR_BASE}/frontend:${{ github.sha }}" \ .
           docker push "${ECR_BASE}/frontend:${{ github.sha }}"
-          docker push "${ECR_BASE}/frontend:latest"
 
       - name: Force ECS redeploy
-        run: aws ecs update-service --cluster $ECS_CLUSTER --service inventoryms-prod-frontend --force-new-deployment --region $AWS_REGION || echo "::warning::ECS service not found"
+        run: |
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services inventoryms-prod-frontend --region $AWS_REGION \
+            --query "services[0].taskDefinition" --output text 2>/dev/null)
+          if [ -z "$TASK_DEF_ARN" ] || [ "$TASK_DEF_ARN" = "None" ]; then
+            echo "::warning::ECS service inventoryms-prod-frontend not found, skipping"
+            exit 0
+          fi
+          NEW_IMAGE="${ECR_BASE}/frontend:${{ github.sha }}"
+          NEW_TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
+            --query "taskDefinition" --output json | \
+            jq --arg img "$NEW_IMAGE" \
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+                .containerDefinitions[0].image = $img') 
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --region $AWS_REGION \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service inventoryms-prod-frontend \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --region $AWS_REGION || echo "::warning::ECS update-service failed"
 
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-frontend --region $AWS_REGION || echo "::warning::Service did not stabilise"

@@ -3,7 +3,7 @@
 # ═══════════════════════════════════════════════════════════════════════════
 
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.10"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -11,12 +11,17 @@ terraform {
     }
   }
 
-  # Uncomment after creating the S3 bucket for state (recommended for teams):
-  # backend "s3" {
-  #   bucket = "inventoryms-terraform-state"
-  #   key    = "prod/terraform.tfstate"
-  #   region = "ap-south-1"
-  # }
+  # S3 backend with native state locking (Terraform 1.10+ feature — no
+  # DynamoDB table needed; TF writes a .tflock file alongside the state).
+  # Before first use: create the bucket manually or with a bootstrap script,
+  # then run `terraform init -migrate-state` once to push local state to S3.
+  backend "s3" {
+    bucket         = "inventoryms-terraform-state"
+    key            = "prod/terraform.tfstate"
+    region         = "ap-south-1"
+    use_lockfile   = true   # S3 native locking — replaces DynamoDB lock table
+    encrypt        = true
+  }
 }
 
 provider "aws" {

@@ -74,6 +74,17 @@
     </dependency>
 
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+
+    <!-- Flyway: controlled DB schema migrations -->
+    <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-mysql</artifactId></dependency>
+
+    <!-- Spring Cache + Caffeine: in-process cache for read-heavy endpoints -->
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-cache</artifactId></dependency>
+    <dependency><groupId>com.github.ben-manes.caffeine</groupId><artifactId>caffeine</artifactId></dependency>
+
+    <!-- AWS X-Ray: distributed tracing -->
+    <dependency><groupId>com.amazonaws</groupId><artifactId>aws-xray-recorder-sdk-spring</artifactId><version>2.14.0</version></dependency>
+    <dependency><groupId>com.amazonaws</groupId><artifactId>aws-xray-recorder-sdk-apache-http</artifactId><version>2.14.0</version></dependency>
   </dependencies>
 
   <build>

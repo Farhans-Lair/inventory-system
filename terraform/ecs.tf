@@ -54,7 +54,7 @@ resource "aws_ecs_task_definition" "auth" {
 
   container_definitions = jsonencode([{
     name      = "auth-service"
-    image     = "${local.ecr_base}/auth-service:latest"
+    image     = "${local.ecr_base}/auth-service:${var.image_tag}"
     essential = true
     portMappings = [{ containerPort = 8081, protocol = "tcp" }]
     environment = [
@@ -137,7 +137,7 @@ resource "aws_ecs_task_definition" "inventory" {
 
   container_definitions = jsonencode([{
     name      = "inventory-service"
-    image     = "${local.ecr_base}/inventory-service:latest"
+    image     = "${local.ecr_base}/inventory-service:${var.image_tag}"
     essential = true
     portMappings = [{ containerPort = 8082, protocol = "tcp" }]
     environment = [
@@ -214,7 +214,7 @@ resource "aws_ecs_task_definition" "notification" {
 
   container_definitions = jsonencode([{
     name      = "notification-service"
-    image     = "${local.ecr_base}/notification-service:latest"
+    image     = "${local.ecr_base}/notification-service:${var.image_tag}"
     essential = true
     portMappings = [{ containerPort = 8083, protocol = "tcp" }]
     environment = [
@@ -283,7 +283,7 @@ resource "aws_ecs_task_definition" "reporting" {
 
   container_definitions = jsonencode([{
     name      = "reporting-service"
-    image     = "${local.ecr_base}/reporting-service:latest"
+    image     = "${local.ecr_base}/reporting-service:${var.image_tag}"
     essential = true
     portMappings = [{ containerPort = 8084, protocol = "tcp" }]
     environment = [
@@ -349,7 +349,7 @@ resource "aws_ecs_task_definition" "supplier" {
 
   container_definitions = jsonencode([{
     name      = "supplier-service"
-    image     = "${local.ecr_base}/supplier-service:latest"
+    image     = "${local.ecr_base}/supplier-service:${var.image_tag}"
     essential = true
     portMappings = [{ containerPort = 8085, protocol = "tcp" }]
     environment = [
@@ -418,7 +418,7 @@ resource "aws_ecs_task_definition" "frontend" {
 
   container_definitions = jsonencode([{
     name      = "frontend"
-    image     = "${local.ecr_base}/frontend:latest"
+    image     = "${local.ecr_base}/frontend:${var.image_tag}"
     essential = true
     portMappings = [{ containerPort = 80, protocol = "tcp" }]
     logConfiguration = {

@@ -33,6 +33,24 @@
       <version>1.0.0</version>
     </dependency>
 
+    <!-- Flyway: controlled DB schema migrations — replaces ddl-auto=update -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-mysql</artifactId>
+    </dependency>
+
+    <!-- AWS X-Ray: distributed tracing across services -->
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-xray-recorder-sdk-spring</artifactId>
+      <version>2.14.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-xray-recorder-sdk-apache-http</artifactId>
+      <version>2.14.0</version>
+    </dependency>
+
     <!-- Test scope — required for mvn test phase to complete without errors -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
