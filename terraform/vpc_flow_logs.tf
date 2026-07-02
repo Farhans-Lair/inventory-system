@@ -74,7 +74,6 @@ resource "aws_s3_bucket_policy" "flow_logs" {
 resource "aws_flow_log" "vpc" {
   vpc_id               = aws_vpc.main.id
   traffic_type         = "ALL"
-  iam_role_arn         = aws_iam_role.flow_logs.arn
   log_destination      = aws_s3_bucket.flow_logs.arn
   log_destination_type = "s3"
 
@@ -88,30 +87,6 @@ resource "aws_flow_log" "vpc" {
   tags = { Name = "${local.prefix}-vpc-flow-log" }
 }
 
-# IAM role for flow logs delivery
-resource "aws_iam_role" "flow_logs" {
-  name = "${local.prefix}-vpc-flow-logs-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "vpc-flow-logs.amazonaws.com" }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "flow_logs" {
-  name = "${local.prefix}-vpc-flow-logs-policy"
-  role = aws_iam_role.flow_logs.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:PutObject"]
-      Resource = "${aws_s3_bucket.flow_logs.arn}/*"
-    }]
-  })
-}
-
-# aws_caller_identity.current is declared in iam.tf — reused here via reference
+# No IAM role needed for S3 delivery — AWS automatically uses a
+# service-linked role when log_destination_type = "s3".
+# An IAM role is only required when delivering to CloudWatch Logs.
