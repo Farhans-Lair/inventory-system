@@ -540,7 +540,7 @@ jobs:
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
-          docker build -t "${ECR_BASE}/frontend:${{ github.sha }}" \ .
+          docker build -t "${ECR_BASE}/frontend:${{ github.sha }}" .
           docker push "${ECR_BASE}/frontend:${{ github.sha }}"
 
       - name: Force ECS redeploy
