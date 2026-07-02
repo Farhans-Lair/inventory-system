@@ -114,5 +114,4 @@ resource "aws_iam_role_policy" "flow_logs" {
   })
 }
 
-# Needed for the flow_logs bucket policy account ID reference
-data "aws_caller_identity" "current" {}
+# aws_caller_identity.current is declared in iam.tf — reused here via reference
