@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS notification_logs (
     recipient     VARCHAR(255)  NOT NULL,
     subject       VARCHAR(2000),
     body          VARCHAR(4000),
-    sent          BIT(1)        NOT NULL DEFAULT 0,
+    sent          TINYINT(1)        NOT NULL DEFAULT 0,
     error_message VARCHAR(255),
     sent_at       DATETIME(6),
     PRIMARY KEY (id)

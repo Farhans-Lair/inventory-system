@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS products (
     cost_price           DECIMAL(12,2),
     selling_price        DECIMAL(12,2),
     barcode_value        VARCHAR(255),
-    has_expiry_tracking  BIT(1)         NOT NULL DEFAULT 0,
-    active               BIT(1)         NOT NULL DEFAULT 1,
+    has_expiry_tracking  TINYINT(1)         NOT NULL DEFAULT 0,
+    active               TINYINT(1)         NOT NULL DEFAULT 1,
     created_at           DATETIME(6),
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS locations (
     zone        VARCHAR(255) NOT NULL,
     description VARCHAR(255),
     capacity    INT,
-    active      BIT(1)       NOT NULL DEFAULT 1,
+    active      TINYINT(1)       NOT NULL DEFAULT 1,
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
     cost_price_override   DECIMAL(12,2),
     selling_price_override DECIMAL(12,2),
     image_url             VARCHAR(255),
-    active                BIT(1)       NOT NULL DEFAULT 1,
+    active                TINYINT(1)       NOT NULL DEFAULT 1,
     created_at            DATETIME(6),
     PRIMARY KEY (id),
     CONSTRAINT fk_pv_product FOREIGN KEY (product_id) REFERENCES products(id)

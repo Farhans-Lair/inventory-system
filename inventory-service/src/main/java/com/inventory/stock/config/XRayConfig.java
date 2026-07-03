@@ -6,28 +6,21 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
- * AWS X-Ray distributed tracing configuration for inventory-service.
+ * AWS X-Ray tracing for inventory-service.
  *
- * Uses OncePerRequestFilter (jakarta.servlet) rather than AWSXRayServletFilter
- * (javax.servlet) because Spring Boot 3 migrated fully to jakarta.servlet and
- * the X-Ray SDK 2.x servlet filter is still on the old javax.servlet API —
- * the two are incompatible at compile time.
- *
- * This filter creates an X-Ray segment for every HTTP request, records the
- * URL, method, and response status, and closes the segment on completion.
- * Segments appear in the AWS X-Ray console service map and trace list.
- *
- * In local dev where no X-Ray daemon is running, the SDK silently discards
- * segments — no errors thrown because LogErrorContextMissingStrategy=true
- * is set in application.properties.
+ * Deliberately non-blocking: X-Ray operations are wrapped in try-catch so
+ * that a missing daemon, SDK exception, or any X-Ray failure NEVER affects
+ * the actual request. The filter always calls filterChain.doFilter() and
+ * never swallows or rethrows exceptions from the application itself.
  */
 @Configuration
 public class XRayConfig {
@@ -41,23 +34,28 @@ public class XRayConfig {
                                             HttpServletResponse response,
                                             FilterChain filterChain)
                     throws ServletException, IOException {
-                String segmentName = "inventory";
+
                 Segment segment = null;
                 try {
-                    segment = AWSXRay.beginSegment(segmentName);
-                    segment.putHttp("request", java.util.Map.of(
+                    segment = AWSXRay.beginSegment("inventory-service");
+                    segment.putHttp("request", Map.of(
                             "method", request.getMethod(),
                             "url",    request.getRequestURL().toString()
                     ));
-                    filterChain.doFilter(request, response);
-                    segment.putHttp("response", java.util.Map.of(
-                            "status", response.getStatus()
-                    ));
-                } catch (Exception e) {
-                    if (segment != null) segment.addException(e);
-                    throw e;
-                } finally {
-                    try { AWSXRay.endSegment(); } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                    // X-Ray must never block requests — daemon may not be running locally
+                }
+
+                // Always run the actual request regardless of X-Ray state
+                filterChain.doFilter(request, response);
+
+                try {
+                    if (segment != null) {
+                        segment.putHttp("response", Map.of("status", response.getStatus()));
+                        AWSXRay.endSegment();
+                    }
+                } catch (Exception ignored) {
+                    // Silently discard — X-Ray send failure is not a request failure
                 }
             }
         });

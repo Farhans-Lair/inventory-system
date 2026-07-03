@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
     email          VARCHAR(255),
     phone          VARCHAR(255),
     address        VARCHAR(255),
-    active         BIT(1)       NOT NULL DEFAULT 1,
+    active         TINYINT(1)       NOT NULL DEFAULT 1,
     created_at     DATETIME(6),
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
