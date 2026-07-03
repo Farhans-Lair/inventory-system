@@ -147,7 +147,9 @@ export default function SignupPage() {
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 12.5 }}>Role</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {!rolesLoaded
+                  ? <div style={{ padding: '10px 0', color: 'var(--text-2)', fontSize: 13 }}>Loading...</div>
+                  : <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   {ROLES.map(r => (
                     <label key={r.value} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
@@ -164,7 +166,7 @@ export default function SignupPage() {
                       </div>
                     </label>
                   ))}
-                </div>
+                </div>}
               </div>
               {error && (
                 <div style={{ color: 'var(--crit)', fontSize: 13, background: 'var(--crit-bg)', padding: '9px 12px', borderRadius: 'var(--radius)' }}>
