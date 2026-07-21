@@ -63,3 +63,21 @@ resource "aws_db_instance" "shared" {
   multi_az                = false
   tags                    = { Name = "${local.prefix}-shared-db" }
 }
+
+# ── Read replica for reporting-service ─────────────────────────────────────
+# reporting-service only reads inventorydb (product/valuation CSV exports);
+# it previously shared the primary instance with inventory-service's
+# transactional writes, so a heavy report run could slow down live stock
+# operations. Read-only, so this only helps if reporting-service never
+# writes — if that changes, give it a second write-capable datasource
+# pointing back at aws_db_instance.shared instead.
+resource "aws_db_instance" "reporting_replica" {
+  identifier              = "${local.prefix}-reporting-replica"
+  replicate_source_db     = aws_db_instance.shared.identifier
+  instance_class          = var.db_instance_class
+  vpc_security_group_ids  = [aws_security_group.rds.id]
+  publicly_accessible     = false
+  skip_final_snapshot     = true
+  storage_encrypted       = true
+  tags                    = { Name = "${local.prefix}-reporting-replica" }
+}

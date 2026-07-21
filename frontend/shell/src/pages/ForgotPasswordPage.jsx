@@ -19,6 +19,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail]       = useState('')
   const [otp, setOtp]           = useState('')
   const [newPass, setNewPass]   = useState('')
+  const [sessionToken, setSessionToken] = useState('')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState('')
@@ -27,7 +28,8 @@ export default function ForgotPasswordPage() {
   async function sendOtp(e) {
     e.preventDefault(); setError(''); setLoading(true)
     try {
-      await authApi.forgotPassword({ email })
+      const { data } = await authApi.forgotPassword({ email })
+      setSessionToken(data.sessionToken)
       setStep(2); setSuccess('A reset code has been sent to ' + email)
     } catch(err) { setError(err.response?.data?.message || 'Could not send reset code') }
     finally { setLoading(false) }
@@ -36,7 +38,7 @@ export default function ForgotPasswordPage() {
   async function resetPass(e) {
     e.preventDefault(); setError(''); setLoading(true)
     try {
-      await authApi.resetPassword({ email, otp, newPassword: newPass })
+      await authApi.resetPassword({ email, otp, newPassword: newPass, sessionToken })
       setSuccess('Password reset successfully!'); setTimeout(() => navigate('/login'), 1500)
     } catch(err) { setError(err.response?.data?.message || 'Reset failed') }
     finally { setLoading(false) }

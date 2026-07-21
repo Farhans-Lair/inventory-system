@@ -159,6 +159,64 @@ resource "aws_cloudwatch_metric_alarm" "ecs_tasks_auth" {
   }
 }
 
+# ── 7b. ECS service task count — notification/reporting/supplier ─────────
+# Previously only auth-service had task-count coverage; these three ran a
+# single task each with no alarm, so a crash was silent until someone
+# noticed. Same pattern as ecs_tasks_auth above, one per service.
+resource "aws_cloudwatch_metric_alarm" "ecs_tasks_notification" {
+  alarm_name          = "${local.prefix}-ecs-notification-tasks-low"
+  alarm_description   = "notification-service running task count < 1 — service may be crashing"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "RunningTaskCount"
+  namespace           = "ECS/ContainerInsights"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = "${local.prefix}-notification"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "ecs_tasks_reporting" {
+  alarm_name          = "${local.prefix}-ecs-reporting-tasks-low"
+  alarm_description   = "reporting-service running task count < 1 — service may be crashing"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "RunningTaskCount"
+  namespace           = "ECS/ContainerInsights"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = "${local.prefix}-reporting"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "ecs_tasks_supplier" {
+  alarm_name          = "${local.prefix}-ecs-supplier-tasks-low"
+  alarm_description   = "supplier-service running task count < 1 — service may be crashing"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "RunningTaskCount"
+  namespace           = "ECS/ContainerInsights"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = "${local.prefix}-supplier"
+  }
+}
+
 # ── 8. WAF blocked requests ───────────────────────────────────────────────
 # Spike here means an active attack is being blocked — worth knowing about.
 resource "aws_cloudwatch_metric_alarm" "waf_blocked" {

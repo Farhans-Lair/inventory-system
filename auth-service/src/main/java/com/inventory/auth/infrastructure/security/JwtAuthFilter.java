@@ -8,6 +8,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +22,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    // Auth requests carry access tokens only — session/refresh tokens never
+    // reach this filter (session tokens go in the OTP verify request body,
+    // refresh tokens go in the HttpOnly cookie read directly by AuthController).
+    @Qualifier("accessJwtUtil")
     private final JwtUtil jwtUtil;
 
     @Override

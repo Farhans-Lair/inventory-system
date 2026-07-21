@@ -10,4 +10,6 @@ public class OtpVerifyRequest {
     private String email;
     @NotBlank
     private String otp;
+    @NotBlank
+    private String sessionToken;
 }

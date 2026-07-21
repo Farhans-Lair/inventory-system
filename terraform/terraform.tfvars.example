@@ -19,7 +19,9 @@ db_password       = ""          # set a strong password — no @ or / characters
 db_instance_class = "db.t3.micro"
 
 # ── Secrets ────────────────────────────────────────────────────────────────
-jwt_secret       = ""           # generate: openssl rand -base64 64
+jwt_session_secret = ""        # generate: openssl rand -base64 64
+jwt_access_secret  = ""        # generate: openssl rand -base64 64 (separate value!)
+jwt_refresh_secret = ""        # generate: openssl rand -base64 64 (separate value!)
 mail_username    = ""           # Gmail address
 mail_password    = ""           # Gmail App Password (not your login password)
 alert_recipients = ""           # comma-separated emails for stock alerts

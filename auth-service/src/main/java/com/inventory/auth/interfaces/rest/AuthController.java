@@ -22,6 +22,11 @@ import java.time.Duration;
 public class AuthController {
 
     private final AuthService authService;
+
+    // Used only in logout() to read the userId claim out of the Authorization
+    // header's access token — session/refresh tokens are handled entirely
+    // inside AuthService.
+    @org.springframework.beans.factory.annotation.Qualifier("accessJwtUtil")
     private final JwtUtil     jwtUtil;
 
     @Value("${cookie.secure:false}")

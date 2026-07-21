@@ -93,7 +93,9 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       AUTH_DB_NAME: ${AUTH_DB_NAME}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SESSION_SECRET: ${JWT_SESSION_SECRET}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       COOKIE_SECURE: ${COOKIE_SECURE}
       MAIL_HOST: ${MAIL_HOST}
       MAIL_PORT: ${MAIL_PORT}
@@ -115,7 +117,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       INVENTORY_DB_NAME: ${INVENTORY_DB_NAME}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       # S3 image storage: in local dev, image uploads are disabled (no AWS creds).
       # In prod, the ECS task IAM role provides credentials automatically.
       AWS_REGION: ${AWS_REGION:-ap-south-1}
@@ -136,7 +138,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       NOTIFICATION_DB_NAME: ${NOTIFICATION_DB_NAME}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       MAIL_HOST: ${MAIL_HOST}
       MAIL_PORT: ${MAIL_PORT}
       MAIL_USERNAME: ${MAIL_USERNAME}
@@ -158,7 +160,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       INVENTORY_DB_NAME: ${INVENTORY_DB_NAME}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
     networks:
       - inventory-net
     depends_on:
@@ -175,7 +177,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       SUPPLIER_DB_NAME: ${SUPPLIER_DB_NAME}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
     networks:
       - inventory-net
     depends_on:

@@ -57,11 +57,10 @@ resource "aws_s3_bucket_cors_configuration" "images" {
   cors_rule {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "PUT", "POST"]
-    allowed_origins = [
-      "http://${aws_lb.main.dns_name}",
-      # Add your custom domain here once HTTPS is configured, e.g.:
-      # "https://your-domain.com",
-    ]
+    allowed_origins = concat(
+      ["http://${aws_lb.main.dns_name}"],
+      var.domain_name != "" ? ["https://${var.domain_name}"] : []
+    )
     max_age_seconds = 3600
   }
 }

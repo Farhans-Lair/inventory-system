@@ -24,7 +24,8 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_basic" {
 
 # Lets the execution role resolve `secrets: valueFrom` entries in task
 # definitions at launch time — without this, ECS cannot pull DB_PASS,
-# JWT_SECRET, or MAIL_PASSWORD from Secrets Manager and tasks fail to start.
+# JWT_SESSION_SECRET/JWT_ACCESS_SECRET/JWT_REFRESH_SECRET, or MAIL_PASSWORD
+# from Secrets Manager and tasks fail to start.
 resource "aws_iam_role_policy" "ecs_execution_secrets" {
   name = "${local.prefix}-ecs-execution-secrets"
   role = aws_iam_role.ecs_execution.id

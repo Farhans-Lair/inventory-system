@@ -194,3 +194,97 @@ resource "aws_lb_listener_rule" "supplier" {
     target_group_arn = aws_lb_target_group.supplier.arn
   }
 }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HTTPS listener — only created when var.domain_name is set (see acm.tf).
+# Mirrors the HTTP listener's path-based rules exactly. Port 80 is left as
+# forward-to-frontend rather than redirect-to-443, so existing HTTP clients
+# keep working during migration; add a redirect action once you've confirmed
+# everything works over HTTPS.
+# ═══════════════════════════════════════════════════════════════════════════
+resource "aws_lb_listener" "https" {
+  count             = var.domain_name != "" ? 1 : 0
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = aws_acm_certificate_validation.alb[0].certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "auth_https" {
+  count        = var.domain_name != "" ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 10
+  condition {
+    path_pattern { values = ["/api/auth/*", "/api/users*"] }
+  }
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.auth.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "inventory_https" {
+  count        = var.domain_name != "" ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 20
+  condition {
+    path_pattern {
+      values = [
+        "/api/products*",
+        "/api/locations*",
+        "/api/stock*",
+        "/api/batch-lots*",
+        "/api/cycle-counts*",
+      ]
+    }
+  }
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.inventory.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "notification_https" {
+  count        = var.domain_name != "" ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 30
+  condition {
+    path_pattern { values = ["/api/notifications*"] }
+  }
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.notification.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "reporting_https" {
+  count        = var.domain_name != "" ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 40
+  condition {
+    path_pattern { values = ["/api/reports*"] }
+  }
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.reporting.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "supplier_https" {
+  count        = var.domain_name != "" ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 50
+  condition {
+    path_pattern { values = ["/api/suppliers*", "/api/purchase-orders*"] }
+  }
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.supplier.arn
+  }
+}

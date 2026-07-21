@@ -26,7 +26,17 @@ variable "db_instance_class" {
 }
 
 # ── Secrets ────────────────────────────────────────────────────────────────
-variable "jwt_secret" {
+# Three separate JWT signing secrets — session (pre-auth OTP flow), access
+# (API auth, validated by every backend service), and refresh (rotated on
+# every /api/auth/refresh call). Generate each independently, e.g.:
+#   openssl rand -base64 64
+variable "jwt_session_secret" {
+  sensitive = true
+}
+variable "jwt_access_secret" {
+  sensitive = true
+}
+variable "jwt_refresh_secret" {
   sensitive = true
 }
 variable "mail_username"    { default = "" }
@@ -36,9 +46,17 @@ variable "mail_password" {
 }
 variable "alert_recipients" { default = "" }
 
-# ── Container sizing ───────────────────────────────────────────────────────
-variable "service_cpu"    { default = 512  }
-variable "service_memory" { default = 1024 }
+# ── HTTPS (optional) ────────────────────────────────────────────────────────
+variable "domain_name" {
+  description = <<-EOT
+    Custom domain for the ALB, e.g. "inventoryms.example.com". Leave blank
+    (default) to keep the ALB HTTP-only, as before. When set, requires an
+    existing Route53 public hosted zone for the domain — acm.tf provisions
+    a DNS-validated ACM cert and alb.tf adds an HTTPS listener using it.
+    Setting this also flips COOKIE_SECURE to "true" in ecs.tf.
+  EOT
+  default     = ""
+}
 
 # ── EC2 ECS instances ──────────────────────────────────────────────────────
 variable "ec2_instance_type" {
@@ -57,21 +75,23 @@ variable "ec2_min_instances" {
 
 variable "ec2_max_instances" {
   description = "Maximum number of EC2 instances the ASG can scale to"
-  # Must be >= ec2_desired_instances (now 4). Leaves room for one extra
+  # Must be >= ec2_desired_instances (now 6). Leaves room for one extra
   # instance during CPU-driven scale-out before hitting the ceiling.
-  default     = 5
+  default     = 7
 }
 
 variable "ec2_desired_instances" {
   description = "Initial desired count (ASG takes over after first apply)"
-  # 4 instances required: t3.large supports 3 ENIs per instance.
-  # With awsvpc network mode each ECS task needs 1 ENI.
-  # 4 instances × 3 ENIs = 12 slots - 4 for the instances themselves = 8 for tasks.
-  # Steady-state task count is now 8: auth(2) + inventory(2) + notification(1) +
-  # reporting(1) + supplier(1) + frontend(1). auth and inventory run desired_count=2
-  # so a deployment can replace one task at a time while the other keeps serving
-  # traffic — see deployment_minimum_healthy_percent on those two services in ecs.tf.
-  default     = 4
+  # 6 instances required: t3.large supports 3 ENIs per instance, 1 of which
+  # is the host's own primary ENI, leaving 2 usable task slots per instance.
+  # 6 instances × 2 task slots = 12 task slots.
+  # Steady-state task count is now 11: auth(2) + inventory(2) + notification(2) +
+  # reporting(2) + supplier(2) + frontend(1). All five backend services now
+  # run desired_count=2 with deployment_minimum_healthy_percent=50 so a
+  # deployment can replace one task at a time while the other keeps serving
+  # traffic (previously notification/reporting/supplier ran a single
+  # unmonitored task each — see ecs.tf and cloudwatch.tf).
+  default     = 6
 }
 
 # ── S3 ─────────────────────────────────────────────────────────────────────

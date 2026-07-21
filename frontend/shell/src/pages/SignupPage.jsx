@@ -20,6 +20,7 @@ export default function SignupPage() {
   const [form,  setForm]  = useState({ fullName: '', email: '', password: '', confirmPassword: '', role: 'WAREHOUSE_MANAGER' })
   const [otp,   setOtp]   = useState('')
   const [email, setEmail] = useState('')
+  const [sessionToken, setSessionToken] = useState('')
   const [error, setError] = useState('')
   // Bootstrap probe — shows Admin role only when zero admins exist yet
   const [adminExists, setAdminExists] = useState(true) // default true = hide admin option (safe default)
@@ -52,7 +53,7 @@ export default function SignupPage() {
       const { data } = await authApi.initiateSignup({
         email: form.email, fullName: form.fullName, password: form.password, role: form.role,
       })
-      setEmail(data.email); setStep(2)
+      setEmail(data.email); setSessionToken(data.sessionToken); setStep(2)
     } catch (err) { setError(err.response?.data?.message || 'Signup failed.') }
     finally { setBusy(false) }
   }
@@ -60,7 +61,7 @@ export default function SignupPage() {
   const submitOtp = async e => {
     e.preventDefault(); setError(''); setBusy(true)
     try {
-      await authApi.verifySignup({ email, otp })
+      await authApi.verifySignup({ email, otp, sessionToken })
       navigate('/login', { state: { registered: true } })
     } catch (err) { setError(err.response?.data?.message || 'Invalid or expired code.') }
     finally { setBusy(false) }

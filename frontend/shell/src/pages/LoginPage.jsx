@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [otp,      setOtp]      = useState('')
   const [devOtp,   setDevOtp]   = useState('')
+  const [sessionToken, setSessionToken] = useState('')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
   const { login } = useAuth()
@@ -21,7 +22,7 @@ export default function LoginPage() {
     e.preventDefault(); setError(''); setLoading(true)
     try {
       const r = await authApi.initiateLogin({ email, password })
-      setDevOtp(r.data.devOtp || ''); setStep(2)
+      setDevOtp(r.data.devOtp || ''); setSessionToken(r.data.sessionToken); setStep(2)
     } catch(err) { setError(err.response?.data?.message || 'Login failed') }
     finally { setLoading(false) }
   }
@@ -29,7 +30,7 @@ export default function LoginPage() {
   async function step2(e) {
     e.preventDefault(); setError(''); setLoading(true)
     try {
-      const r = await authApi.verifyLogin({ email, otp })
+      const r = await authApi.verifyLogin({ email, otp, sessionToken })
       login(r.data)
       navigate('/')
     } catch(err) { setError(err.response?.data?.message || 'Verification failed') }

@@ -60,7 +60,12 @@ resource "aws_ecs_task_definition" "auth" {
     environment = [
       { name = "DB_USER",       value = var.db_username },
       { name = "AUTH_DB_NAME",  value = "authdb" },
-      { name = "COOKIE_SECURE", value = "false" },  # HTTP-only ALB — set to true only after HTTPS/ACM is configured
+      # true only when var.domain_name is set and the ACM cert/HTTPS listener
+      # (acm.tf, alb.tf) are actually provisioned — flipping this to "true"
+      # without HTTPS in front of it is what caused the earlier logout-loop
+      # (Spring Security returns a Secure cookie the browser refuses to store
+      # over plain HTTP, which surfaced as swallowed 403s instead of 401s).
+      { name = "COOKIE_SECURE", value = var.domain_name != "" ? "true" : "false" },
       { name = "MAIL_HOST",     value = "smtp.gmail.com" },
       { name = "MAIL_PORT",     value = "587" },
       { name = "MAIL_USERNAME", value = var.mail_username },
@@ -70,9 +75,15 @@ resource "aws_ecs_task_definition" "auth" {
     # Sensitive values pulled from Secrets Manager at task launch — never
     # appear in plaintext in the task definition, ECS console, or CloudTrail.
     secrets = [
-      { name = "DB_PASS",       valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
-      { name = "MAIL_PASSWORD", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
+      { name = "DB_PASS",           valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      # Three separate keys — a leaked/rotated session or refresh secret no
+      # longer implies the access-token secret is also compromised, and
+      # vice versa. Only auth-service ever sees all three; other services
+      # only get JWT_ACCESS_SECRET (they only validate access tokens).
+      { name = "JWT_SESSION_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SESSION_SECRET::" },
+      { name = "JWT_ACCESS_SECRET",  valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
+      { name = "JWT_REFRESH_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_REFRESH_SECRET::" },
+      { name = "MAIL_PASSWORD",      valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -154,8 +165,8 @@ resource "aws_ecs_task_definition" "inventory" {
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/inventorydb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "DB_PASS",          valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -228,9 +239,13 @@ resource "aws_ecs_task_definition" "notification" {
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/notificationdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",       valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
-      { name = "MAIL_PASSWORD", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
+      { name = "DB_PASS",           valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      # NOTE: notification-service has no JwtConfig/SecurityConfig — this
+      # was already unused before the JWT_SECRET split (dangling config,
+      # not something this change introduces). Kept for parity in case
+      # auth gets added later; safe to remove if confirmed dead.
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
+      { name = "MAIL_PASSWORD",     valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -247,8 +262,14 @@ resource "aws_ecs_service" "notification" {
   name                              = "${local.prefix}-notification"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.notification.arn
-  desired_count                     = 1
+  # Was desired_count=1 with no alarm coverage — a crash or bad deploy was a
+  # silent outage. Now 2 tasks with the same rolling-replacement guarantee
+  # as auth/inventory: one task always stays up during a deployment.
+  desired_count                     = 2
   health_check_grace_period_seconds = 180
+
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 100
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -291,12 +312,19 @@ resource "aws_ecs_task_definition" "reporting" {
       { name = "INVENTORY_DB_NAME", value = "inventorydb" },
       { name = "AWS_REGION",        value = var.aws_region },
       { name = "REPORTS_BUCKET",    value = aws_s3_bucket.reports.id },
+      # Points at the read replica, not the primary — reporting-service only
+      # ever reads from inventorydb (report/valuation generation), so this
+      # takes that load off the primary instance that inventory-service
+      # writes to. If reporting-service ever needs to write, add a second
+      # datasource pointing at aws_db_instance.shared for writes.
       { name = "spring.datasource.url",
-        value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
+        value = "jdbc:mysql://${aws_db_instance.reporting_replica.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "DB_PASS",           valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      # NOTE: same as notification-service — no JwtConfig/SecurityConfig
+      # here yet, this is dangling config kept for parity.
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -313,8 +341,11 @@ resource "aws_ecs_service" "reporting" {
   name                              = "${local.prefix}-reporting"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.reporting.arn
-  desired_count                     = 1
+  desired_count                     = 2
   health_check_grace_period_seconds = 180
+
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 100
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
@@ -364,8 +395,8 @@ resource "aws_ecs_task_definition" "supplier" {
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/supplierdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",    valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SECRET::" },
+      { name = "DB_PASS",          valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -382,8 +413,11 @@ resource "aws_ecs_service" "supplier" {
   name                              = "${local.prefix}-supplier"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.supplier.arn
-  desired_count                     = 1
+  desired_count                     = 2
   health_check_grace_period_seconds = 180
+
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 100
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name

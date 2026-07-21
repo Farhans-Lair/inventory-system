@@ -6,7 +6,10 @@ import com.inventory.auth.domain.model.OtpToken.OtpPurpose;
 import com.inventory.auth.domain.repository.*;
 import com.inventory.auth.infrastructure.email.EmailService;
 import com.inventory.shared.security.JwtUtil;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,12 +26,17 @@ public class AuthService {
     private final UserRepository         userRepository;
     private final OtpTokenRepository     otpTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final JwtUtil                jwtUtil;
     private final PasswordEncoder        passwordEncoder;
     private final EmailService           emailService;
 
+    @Qualifier("sessionJwtUtil") private final JwtUtil sessionJwtUtil;
+    @Qualifier("accessJwtUtil")  private final JwtUtil accessJwtUtil;
+    @Qualifier("refreshJwtUtil") private final JwtUtil refreshJwtUtil;
+
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int MAX_ADMIN_COUNT = 2;
+    private static final String PURPOSE_CLAIM = "purpose";
+    private static final String JTI_CLAIM     = "jti";
 
     @Transactional
     public OtpRequestResponse initiateSignup(SignupRequest request) {
@@ -49,6 +57,7 @@ public class AuthService {
 
     @Transactional
     public TokenPairResponse verifySignup(OtpVerifyRequest request) {
+        validateSessionToken(request.getSessionToken(), request.getEmail(), OtpPurpose.SIGNUP);
         OtpToken token = findValidOtp(request.getEmail(), request.getOtp(), OtpPurpose.SIGNUP);
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Account not found."));
@@ -73,6 +82,7 @@ public class AuthService {
 
     @Transactional
     public TokenPairResponse verifyLogin(OtpVerifyRequest request) {
+        validateSessionToken(request.getSessionToken(), request.getEmail(), OtpPurpose.LOGIN);
         OtpToken token = findValidOtp(request.getEmail(), request.getOtp(), OtpPurpose.LOGIN);
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found."));
@@ -91,6 +101,7 @@ public class AuthService {
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
+        validateSessionToken(request.getSessionToken(), request.getEmail(), OtpPurpose.FORGOT_PASSWORD);
         OtpToken token = findValidOtp(request.getEmail(), request.getOtp(), OtpPurpose.FORGOT_PASSWORD);
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found."));
@@ -101,16 +112,46 @@ public class AuthService {
         refreshTokenRepository.deleteByUserId(user.getId());
     }
 
-    /** Accepts raw refresh-token string read from HttpOnly cookie. */
+    /**
+     * Accepts the refresh JWT read from the HttpOnly cookie. Verifies its
+     * signature/expiry/type first (stateless — refreshJwtUtil), then looks
+     * up its jti to check revocation state.
+     *
+     * Reuse detection: a refresh token is rotated (marked revoked, replaced
+     * by a new one) on every successful use. If a *revoked* jti is ever
+     * presented again, that's not a normal error — it means either the
+     * client retried a stale token, or an attacker replayed a refresh token
+     * that was already used once. Since we can't tell those apart, we treat
+     * it as a compromise signal and revoke every refresh token for that
+     * user, forcing a full re-login everywhere.
+     */
     @Transactional
     public TokenPairResponse refreshAccessToken(String rawRefreshToken) {
-        RefreshToken rt = refreshTokenRepository.findByToken(rawRefreshToken)
+        Claims claims;
+        try {
+            claims = refreshJwtUtil.validateAndParse(rawRefreshToken);
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new RuntimeException("Invalid refresh token.");
+        }
+        String userId = claims.getSubject();
+        String jti     = claims.get(JTI_CLAIM, String.class);
+        if (jti == null) throw new RuntimeException("Invalid refresh token.");
+
+        RefreshToken rt = refreshTokenRepository.findByToken(jti)
                 .orElseThrow(() -> new RuntimeException("Invalid refresh token."));
-        if (rt.isRevoked()) throw new RuntimeException("Refresh token revoked.");
+
+        if (rt.isRevoked()) {
+            // Reuse of an already-rotated-out token — assume compromise.
+            refreshTokenRepository.deleteByUserId(userId);
+            throw new RuntimeException(
+                    "Refresh token reuse detected — all sessions have been revoked. Please log in again.");
+        }
         if (rt.isExpired()) throw new RuntimeException("Refresh token expired.");
-        User user = userRepository.findById(rt.getUserId())
+
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found."));
         if (!user.isActive()) throw new RuntimeException("Account is disabled.");
+
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);
         return buildTokenPair(user);
@@ -184,11 +225,33 @@ public class AuthService {
                 .email(email).code(code).purpose(purpose)
                 .expiresAt(LocalDateTime.now().plusMinutes(10)).used(false).build());
         emailService.sendOtp(email, code, purposeLabel);
+        // Session token proves the client actually went through this
+        // request-OTP step for this exact email+purpose before they're
+        // allowed to call verify-otp / reset-password. Subject = email
+        // (there's no user id yet during signup), 10-minute expiry matches
+        // the OTP's own expiry above.
+        String sessionToken = sessionJwtUtil.generateToken(email, Map.of(PURPOSE_CLAIM, purpose.name()));
         return OtpRequestResponse.builder()
                 .email(email)
                 .message("Verification code sent to " + email)
                 .devOtp(emailService.isEmailConfigured() ? null : code)
+                .sessionToken(sessionToken)
                 .build();
+    }
+
+    /** Validates the session token's signature/expiry/type, and that its
+     *  email + purpose match what the caller is trying to do. */
+    private void validateSessionToken(String sessionToken, String expectedEmail, OtpPurpose expectedPurpose) {
+        Claims claims;
+        try {
+            claims = sessionJwtUtil.validateAndParse(sessionToken);
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new RuntimeException("Session expired or invalid. Please request a new code.");
+        }
+        if (!claims.getSubject().equalsIgnoreCase(expectedEmail))
+            throw new RuntimeException("Session does not match this email.");
+        if (!expectedPurpose.name().equals(claims.get(PURPOSE_CLAIM, String.class)))
+            throw new RuntimeException("Session does not match this action.");
     }
 
     private OtpToken findValidOtp(String email, String code, OtpPurpose purpose) {
@@ -201,12 +264,17 @@ public class AuthService {
     }
 
     public TokenPairResponse buildTokenPair(User user) {
-        String access  = jwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
-        String refresh = UUID.randomUUID().toString();
+        String access = accessJwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
+
+        // jti is what we track in the DB for revocation/rotation/reuse
+        // detection; the refresh JWT itself is what the client holds.
+        String jti     = UUID.randomUUID().toString();
+        String refresh = refreshJwtUtil.generateToken(user.getId(), Map.of(JTI_CLAIM, jti));
         refreshTokenRepository.save(RefreshToken.builder()
-                .token(refresh).userId(user.getId())
+                .token(jti).userId(user.getId())
                 .expiresAt(LocalDateTime.now().plusDays(7))
                 .revoked(false).build());
+
         return TokenPairResponse.builder()
                 .accessToken(access).refreshToken(refresh)
                 .userId(user.getId()).email(user.getEmail())

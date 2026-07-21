@@ -26,8 +26,10 @@ resource "aws_secretsmanager_secret" "app_secrets" {
 resource "aws_secretsmanager_secret_version" "app_secrets" {
   secret_id = aws_secretsmanager_secret.app_secrets.id
   secret_string = jsonencode({
-    DB_PASS       = var.db_password
-    JWT_SECRET    = var.jwt_secret
-    MAIL_PASSWORD = var.mail_password
+    DB_PASS           = var.db_password
+    JWT_SESSION_SECRET = var.jwt_session_secret
+    JWT_ACCESS_SECRET  = var.jwt_access_secret
+    JWT_REFRESH_SECRET = var.jwt_refresh_secret
+    MAIL_PASSWORD      = var.mail_password
   })
 }

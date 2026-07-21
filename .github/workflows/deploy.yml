@@ -37,8 +37,41 @@ jobs:
       frontend:     ${{ steps.set-flags.outputs.frontend }}
       shared_lib:   ${{ steps.set-flags.outputs.shared_lib }}
       ecr_base:     ${{ steps.ecr.outputs.ecr_base }}
+      infra_ready:  ${{ steps.infra-check.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
+
+      # ── Bootstrap guard ─────────────────────────────────────────────────
+      # Checks that ECR repositories exist before attempting any build or
+      # deploy. If this pipeline runs before `terraform apply -target` has
+      # created ECR, all jobs skip gracefully with a clear warning instead
+      # of failing with confusing ECR/ECS errors. This means it is safe to
+      # push code to master at any time regardless of infrastructure state.
+      - name: Configure AWS credentials (bootstrap check)
+        id: aws-creds
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check infrastructure is bootstrapped
+        id: infra-check
+        run: |
+          READY="true"
+          # If AWS credentials failed (OIDC role doesn't exist yet), skip everything
+          if [ "${{ steps.aws-creds.outcome }}" != "success" ]; then
+            READY="false"
+            echo "::warning::OIDC role not found. Run: terraform apply -target=aws_iam_openid_connect_provider.github -target=aws_iam_role.github_actions -target=aws_iam_role_policy.github_actions -target=aws_ecr_repository.services -target=aws_ecr_lifecycle_policy.cleanup -target=aws_secretsmanager_secret.app_secrets -target=aws_secretsmanager_secret_version.app_secrets"
+          else
+            # OIDC works — now check ECR repos exist
+            aws ecr describe-repositories               --repository-names "inventoryms-prod/auth-service"               --region $AWS_REGION > /dev/null 2>&1 || READY="false"
+            if [ "$READY" = "false" ]; then
+              echo "::warning::ECR repositories not found. Run the bootstrap terraform apply targets first, then re-run this workflow."
+            fi
+          fi
+          echo "ready=$READY" >> $GITHUB_OUTPUT
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -99,12 +132,14 @@ jobs:
     name: Build shared-lib
     needs: detect-changes
     if: |
-      needs.detect-changes.outputs.shared_lib   == 'true' ||
-      needs.detect-changes.outputs.auth         == 'true' ||
-      needs.detect-changes.outputs.inventory    == 'true' ||
-      needs.detect-changes.outputs.notification == 'true' ||
-      needs.detect-changes.outputs.reporting    == 'true' ||
-      needs.detect-changes.outputs.supplier     == 'true'
+      needs.detect-changes.outputs.infra_ready == 'true' && (
+        needs.detect-changes.outputs.shared_lib   == 'true' ||
+        needs.detect-changes.outputs.auth         == 'true' ||
+        needs.detect-changes.outputs.inventory    == 'true' ||
+        needs.detect-changes.outputs.notification == 'true' ||
+        needs.detect-changes.outputs.reporting    == 'true' ||
+        needs.detect-changes.outputs.supplier     == 'true'
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -122,6 +157,7 @@ jobs:
     name: auth-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
     if: |
+      needs.detect-changes.outputs.infra_ready == 'true' &&
       always() &&
       needs.detect-changes.outputs.auth == 'true' &&
       (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
@@ -191,6 +227,7 @@ jobs:
     name: inventory-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
     if: |
+      needs.detect-changes.outputs.infra_ready == 'true' &&
       always() &&
       needs.detect-changes.outputs.inventory == 'true' &&
       (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
@@ -260,6 +297,7 @@ jobs:
     name: notification-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
     if: |
+      needs.detect-changes.outputs.infra_ready == 'true' &&
       always() &&
       needs.detect-changes.outputs.notification == 'true' &&
       (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
@@ -329,6 +367,7 @@ jobs:
     name: reporting-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
     if: |
+      needs.detect-changes.outputs.infra_ready == 'true' &&
       always() &&
       needs.detect-changes.outputs.reporting == 'true' &&
       (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
@@ -398,6 +437,7 @@ jobs:
     name: supplier-service - Test - ECR - ECS
     needs: [detect-changes, build-shared-lib]
     if: |
+      needs.detect-changes.outputs.infra_ready == 'true' &&
       always() &&
       needs.detect-changes.outputs.supplier == 'true' &&
       (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
@@ -471,6 +511,7 @@ jobs:
     name: frontend MFEs - ECR - ECS
     needs: detect-changes
     if: |
+      needs.detect-changes.outputs.infra_ready == 'true' &&
       needs.detect-changes.outputs.frontend == 'true' &&
       (github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
