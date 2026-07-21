@@ -75,15 +75,15 @@ resource "aws_ecs_task_definition" "auth" {
     # Sensitive values pulled from Secrets Manager at task launch — never
     # appear in plaintext in the task definition, ECS console, or CloudTrail.
     secrets = [
-      { name = "DB_PASS",           valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "DB_PASS",           valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
       # Three separate keys — a leaked/rotated session or refresh secret no
       # longer implies the access-token secret is also compromised, and
       # vice versa. Only auth-service ever sees all three; other services
       # only get JWT_ACCESS_SECRET (they only validate access tokens).
-      { name = "JWT_SESSION_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_SESSION_SECRET::" },
-      { name = "JWT_ACCESS_SECRET",  valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
-      { name = "JWT_REFRESH_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_REFRESH_SECRET::" },
-      { name = "MAIL_PASSWORD",      valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
+      { name = "JWT_SESSION_SECRET", valueFrom = "${aws_ssm_parameter.jwt_session_secret.arn}" },
+      { name = "JWT_ACCESS_SECRET",  valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
+      { name = "JWT_REFRESH_SECRET", valueFrom = "${aws_ssm_parameter.jwt_refresh_secret.arn}" },
+      { name = "MAIL_PASSWORD",      valueFrom = "${aws_ssm_parameter.mail_password.arn}" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -165,8 +165,8 @@ resource "aws_ecs_task_definition" "inventory" {
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/inventorydb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",          valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
+      { name = "DB_PASS",          valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -239,13 +239,13 @@ resource "aws_ecs_task_definition" "notification" {
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/notificationdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",           valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "DB_PASS",           valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
       # NOTE: notification-service has no JwtConfig/SecurityConfig — this
       # was already unused before the JWT_SECRET split (dangling config,
       # not something this change introduces). Kept for parity in case
       # auth gets added later; safe to remove if confirmed dead.
-      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
-      { name = "MAIL_PASSWORD",     valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:MAIL_PASSWORD::" },
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
+      { name = "MAIL_PASSWORD",     valueFrom = "${aws_ssm_parameter.mail_password.arn}" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -321,10 +321,10 @@ resource "aws_ecs_task_definition" "reporting" {
         value = "jdbc:mysql://${aws_db_instance.reporting_replica.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",           valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
+      { name = "DB_PASS",           valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
       # NOTE: same as notification-service — no JwtConfig/SecurityConfig
       # here yet, this is dangling config kept for parity.
-      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -395,8 +395,8 @@ resource "aws_ecs_task_definition" "supplier" {
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/supplierdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
-      { name = "DB_PASS",          valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:DB_PASS::" },
-      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_secretsmanager_secret.app_secrets.arn}:JWT_ACCESS_SECRET::" },
+      { name = "DB_PASS",          valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
+      { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
     ]
     logConfiguration = {
       logDriver = "awslogs"
