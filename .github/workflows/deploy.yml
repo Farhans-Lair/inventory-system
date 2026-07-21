@@ -18,7 +18,7 @@ on:
 env:
   AWS_REGION:   ap-south-1
   ECS_CLUSTER:  inventoryms-prod-cluster
-  AWS_ROLE_ARN: arn:aws:iam::453551850734:role/inventoryms-github-actions
+  AWS_ROLE_ARN: arn:aws:iam::349744179793:role/inventoryms-github-actions
 
 permissions:
   id-token: write
