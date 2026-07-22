@@ -31,13 +31,28 @@ variable "db_instance_class" {
 # every /api/auth/refresh call). Generate each independently, e.g.:
 #   openssl rand -base64 64
 variable "jwt_session_secret" {
-  sensitive = true
+  description = "HS256 signing key for session tokens (OTP flow). Generate with: openssl rand -base64 64"
+  sensitive   = true
+  validation {
+    condition     = length(var.jwt_session_secret) >= 32
+    error_message = "jwt_session_secret must be at least 32 characters (256 bits) — JJWT rejects anything shorter. Generate with: openssl rand -base64 64"
+  }
 }
 variable "jwt_access_secret" {
-  sensitive = true
+  description = "HS256 signing key for access tokens. Must be different from jwt_session_secret and jwt_refresh_secret. Generate with: openssl rand -base64 64"
+  sensitive   = true
+  validation {
+    condition     = length(var.jwt_access_secret) >= 32
+    error_message = "jwt_access_secret must be at least 32 characters (256 bits) — JJWT rejects anything shorter. Generate with: openssl rand -base64 64"
+  }
 }
 variable "jwt_refresh_secret" {
-  sensitive = true
+  description = "HS256 signing key for refresh tokens. Must be different from jwt_session_secret and jwt_access_secret. Generate with: openssl rand -base64 64"
+  sensitive   = true
+  validation {
+    condition     = length(var.jwt_refresh_secret) >= 32
+    error_message = "jwt_refresh_secret must be at least 32 characters (256 bits) — JJWT rejects anything shorter. Generate with: openssl rand -base64 64"
+  }
 }
 variable "mail_username"    { default = "" }
 variable "mail_password" {
