@@ -6,7 +6,7 @@ import com.inventory.shared.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -18,16 +18,16 @@ import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
-
-    // Used only in logout() to read the userId claim out of the Authorization
-    // header's access token — session/refresh tokens are handled entirely
-    // inside AuthService.
-    @org.springframework.beans.factory.annotation.Qualifier("accessJwtUtil")
     private final JwtUtil     jwtUtil;
+
+    public AuthController(AuthService authService,
+                          @Qualifier("accessJwtUtil") JwtUtil jwtUtil) {
+        this.authService = authService;
+        this.jwtUtil     = jwtUtil;
+    }
 
     @Value("${cookie.secure:false}")
     private boolean cookieSecure;

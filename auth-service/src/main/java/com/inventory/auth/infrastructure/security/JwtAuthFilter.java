@@ -7,7 +7,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,14 +18,21 @@ import java.io.IOException;
 import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     // Auth requests carry access tokens only — session/refresh tokens never
     // reach this filter (session tokens go in the OTP verify request body,
     // refresh tokens go in the HttpOnly cookie read directly by AuthController).
-    @Qualifier("accessJwtUtil")
     private final JwtUtil jwtUtil;
+
+    // Manual constructor required — @Qualifier on a @RequiredArgsConstructor
+    // field is NOT carried to the generated constructor parameter by Lombok,
+    // so Spring cannot resolve which of the three JwtUtil beans to inject.
+    // Writing the constructor explicitly puts @Qualifier on the parameter
+    // where Spring actually looks for it during constructor injection.
+    public JwtAuthFilter(@Qualifier("accessJwtUtil") JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest req,

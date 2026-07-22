@@ -8,7 +8,6 @@ import com.inventory.auth.infrastructure.email.EmailService;
 import com.inventory.shared.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,7 +19,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository         userRepository;
@@ -28,10 +26,31 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder        passwordEncoder;
     private final EmailService           emailService;
+    private final JwtUtil                sessionJwtUtil;
+    private final JwtUtil                accessJwtUtil;
+    private final JwtUtil                refreshJwtUtil;
 
-    @Qualifier("sessionJwtUtil") private final JwtUtil sessionJwtUtil;
-    @Qualifier("accessJwtUtil")  private final JwtUtil accessJwtUtil;
-    @Qualifier("refreshJwtUtil") private final JwtUtil refreshJwtUtil;
+    // Manual constructor required — @Qualifier on @RequiredArgsConstructor
+    // fields is NOT transferred to Lombok-generated constructor parameters,
+    // causing Spring to fail with "expected single matching bean but found 3"
+    // when there are multiple JwtUtil beans in the context.
+    public AuthService(UserRepository userRepository,
+                       OtpTokenRepository otpTokenRepository,
+                       RefreshTokenRepository refreshTokenRepository,
+                       PasswordEncoder passwordEncoder,
+                       EmailService emailService,
+                       @Qualifier("sessionJwtUtil") JwtUtil sessionJwtUtil,
+                       @Qualifier("accessJwtUtil")  JwtUtil accessJwtUtil,
+                       @Qualifier("refreshJwtUtil") JwtUtil refreshJwtUtil) {
+        this.userRepository         = userRepository;
+        this.otpTokenRepository     = otpTokenRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.passwordEncoder        = passwordEncoder;
+        this.emailService           = emailService;
+        this.sessionJwtUtil         = sessionJwtUtil;
+        this.accessJwtUtil          = accessJwtUtil;
+        this.refreshJwtUtil         = refreshJwtUtil;
+    }
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int MAX_ADMIN_COUNT = 2;
