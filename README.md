@@ -1,20 +1,30 @@
 # InventoryMS
 
-A production-style microservices inventory management system built as a portfolio and learning project. The goal was to demonstrate real-world AWS architecture, CI/CD, and full-stack engineering skills — not a toy CRUD app, but a system that works through real distributed-systems problems: RBAC, tab-isolated JWT auth, Module Federation micro-frontends, infrastructure hardening, observability, and deployment automation.
+*A production-style microservices inventory management system — portfolio and learning project demonstrating real-world AWS architecture, CI/CD automation, and full-stack distributed-systems engineering.*
 
-## Live deployment
+Repository: `github.com/Farhans-Lair/inventory-system` &nbsp;|&nbsp; Region: AWS ap-south-1 (Mumbai) &nbsp;|&nbsp; Branch: `master`
 
-The app runs on AWS ECS in `ap-south-1` (Mumbai), fronted by an Application Load Balancer:
+---
+
+## 1. Overview
+
+InventoryMS is not a toy CRUD app. It works through real distributed-systems problems: role-based access control, tab-isolated JWT authentication with refresh-token rotation, Module Federation micro-frontends, infrastructure hardening, observability, and deployment automation on AWS. The system is deliberately built and iterated to reflect production engineering practices at a portfolio-appropriate cost point.
+
+### Live deployment
+
+The application runs on AWS ECS (EC2 launch type) in `ap-south-1`, fronted by an Application Load Balancer:
 
 ```
 http://<project>-<environment>-alb-<id>.ap-south-1.elb.amazonaws.com/
 ```
 
-> **Note on HTTPS:** The ALB currently only listens on HTTP (port 80). Adding HTTPS requires a custom domain and an ACM certificate — AWS will not issue a TLS certificate for the raw `*.elb.amazonaws.com` hostname. Since registering a domain incurs cost, HTTP is used for this portfolio project. The infrastructure is ready for HTTPS: once a domain is pointed at the ALB, adding an ACM certificate and an HTTPS listener is a one-time Terraform change.
+> **Note on HTTPS:** HTTPS is optional and gated on a `domain_name` Terraform variable — when unset (the default), the ALB serves HTTP-only, since AWS will not issue an ACM certificate for a raw `*.elb.amazonaws.com` hostname and registering a domain incurs cost. When a domain is supplied, Terraform provisions an ACM certificate, Route 53 records, and an HTTPS listener automatically.
 
 ---
 
-## Architecture
+## 2. Architecture
+
+Five independent Spring Boot microservices sit behind a single ALB with path-based routing, backed by one shared RDS MySQL instance using separate schemas per service. `reporting-service` reads `inventorydb` directly (read-only, via its own RDS read replica) and owns no schema of its own. `notification-service` is internal-only, invoked by `inventory-service` when stock thresholds are breached — it is never called from the frontend.
 
 ```
                        ┌─────────────────────────────────┐
@@ -35,67 +45,68 @@ http://<project>-<environment>-alb-<id>.ap-south-1.elb.amazonaws.com/
                                                ▼
                               ONE shared RDS MySQL instance
                         (authdb · inventorydb · notificationdb · supplierdb)
+                              + dedicated read replica for reporting-service
 
            default route ──▶ frontend shell + 5 Module Federation MFEs
 ```
 
-`reporting-service` reads directly from `inventorydb` (read-only). It has no schema of its own. `notification-service` is internal-only — called by `inventory-service` when stock thresholds are breached; it is never called from the frontend.
-
----
-
-## Services overview
+### Services overview
 
 | Service | Port | Schema | Description |
 |---|---|---|---|
-| auth-service | 8081 | authdb | JWT issuance, OTP 2FA, refresh-token rotation, password reset, user management, admin bootstrap |
-| inventory-service | 8082 | inventorydb | Products, locations, stock levels, movements, reservations, batch/lot tracking, cycle counts, UoM rules |
-| notification-service | 8083 | notificationdb | Email/webhook alerts for low-stock, out-of-stock, and overstock events |
-| reporting-service | 8084 | inventorydb (read-only) | Stock valuation, movement trends, CSV export |
-| supplier-service | 8085 | supplierdb | Suppliers, purchase orders, GRN (goods receipt with real stock integration) |
-| frontend (shell) | 80 | — | React shell + 5 Module Federation micro-frontends served by nginx |
+| `auth-service` | 8081 | `authdb` | JWT issuance (session/access/refresh), OTP two-factor login & signup, refresh-token rotation with reuse detection, password reset, user management, 2-admin bootstrap |
+| `inventory-service` | 8082 | `inventorydb` | Products, variants, locations, stock levels & movements, reservations, batch/lot tracking, cycle counts, UoM conversions, demand forecasting, barcode/QR, CSV import/export |
+| `notification-service` | 8083 | `notificationdb` | Email/webhook alerts for low-stock, out-of-stock and overstock events; internal-only, called by `inventory-service` |
+| `reporting-service` | 8084 | `inventorydb` (read-only, via RDS read replica) | Stock valuation, movement trend analytics, CSV export with S3 archival |
+| `supplier-service` | 8085 | `supplierdb` | Suppliers, purchase orders, Goods Receipt Notes (GRN) with real stock-level integration into `inventory-service` |
+| `frontend` (shell) | 80 | — | React shell + 5 Module Federation micro-frontends served by nginx |
 
-All backend services follow a DDD four-layer structure: `domain → application → infrastructure → interfaces`.
+All five backend services follow a strict Domain-Driven Design four-layer structure — `domain → application → infrastructure → interfaces` — with dependency direction enforced at the compiler level (inner layers never import outer layers).
 
 ---
 
-## Authentication and session model
+## 3. Authentication & session model
 
-Each browser **tab** maintains its own independent session:
+Each browser **tab** maintains a fully independent session (a deliberate, verified design choice — not an accidental side-effect of `sessionStorage`):
 
-- **Access token** — stored in `sessionStorage`, sent as `Authorization: Bearer <token>`. Tab-scoped: logging in on one tab never affects another tab, even for the same browser.
-- **Refresh token** — stored in an HttpOnly cookie (`path=/api/auth/`), rotated on every use. Never accessible to JavaScript.
-- On a 401, the axios interceptor silently refreshes and retries the original request.
-- Unauthenticated requests return **401** (not 403), handled by a dedicated `AuthenticationEntryPoint`.
+- **Access token** — stored in `sessionStorage`, sent as `Authorization: Bearer <token>`. Tab-scoped: logging in on one tab never affects another tab, even for the same user in the same browser.
+- **Refresh token** — stored in an HttpOnly cookie scoped to `path=/api/auth/`, rotated on every use, with reuse detection: replaying an already-rotated-out refresh token revokes every session for that user, on the assumption the token has been compromised.
+- **Three separate HS256 JWT secrets** — `JWT_SESSION_SECRET`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` — each bound to its own `JwtUtil` bean and a `"typ"` claim, so a token minted for one purpose is cryptographically rejected if replayed as another (defense-in-depth beyond just using different secrets).
+- A short-lived **session token** (10-minute expiry) is issued when an OTP is first requested, and must be presented alongside the OTP on verify/reset — this proves the client actually completed the request-OTP step for that exact email and purpose before verification is accepted.
+- On a 401, the shell's axios response interceptor silently calls `/api/auth/refresh` and retries the original request; concurrent 401s are queued so only one refresh call fires at a time.
+- Unauthenticated requests return **401** (not 403) via a dedicated Spring Security `AuthenticationEntryPoint` — the axios interceptor only watches for 401, so this distinction is functionally load-bearing, not cosmetic.
 
-### Roles and admin bootstrap
+### Roles & admin bootstrap
 
 Three roles: `ADMIN`, `WAREHOUSE_MANAGER`, `STAKEHOLDER`.
 
-- The signup page calls `GET /api/auth/admin-exists` (unauthenticated) on load. If no admin exists yet (fresh system), it shows the Administrator option so the first user can bootstrap the system. Once one admin exists, the option disappears from public signup permanently.
-- A maximum of **2 admin accounts** can exist. After the first admin is created via public signup, all further admin accounts must be created by an existing admin through the Users panel.
-- The backend enforces both rules independently of the UI — bypassing the frontend via direct API calls does not bypass the server-side checks.
+- The signup page calls `GET /api/auth/admin-exists` (unauthenticated) on load. If no admin exists yet, the Administrator option is shown so the first user can bootstrap the system; once one admin exists, the option disappears from public signup permanently.
+- A hard cap of **2 admin accounts** is enforced. After the first admin self-registers, every subsequent admin account must be created by an existing admin through the Users panel.
+- Both rules are enforced server-side, independently of the UI — direct API calls cannot bypass them.
 
 ---
 
-## Module Federation
+## 4. Frontend — Module Federation micro-frontends
 
-The frontend is a true micro-frontend setup — a shell app loads five independently-built remotes at runtime:
+The frontend is a true runtime micro-frontend architecture: a shell application loads five independently built and versioned remotes over the network, not at build time.
 
 | MFE | Dev port | Owns |
 |---|---|---|
-| dashboardMfe | 3001 | Dashboard, trend charts |
-| productsMfe | 3002 | Products, Locations, Batch/Lots, Cycle Counts, UoM Rules |
-| stockMfe | 3003 | Stock Levels, Movements, Reservations |
-| supplierMfe | 3004 | Suppliers, Purchase Orders, Goods Receipt |
-| reportingMfe | 3005 | Reports, Users |
+| `dashboardMfe` | 3001 | Dashboard overview, summary tiles |
+| `productsMfe` | 3002 | Products, Locations, Batch/Lots, Cycle Counts, UoM Rules |
+| `stockMfe` | 3003 | Stock Levels, Movements, Reservations |
+| `supplierMfe` | 3004 | Suppliers, Purchase Orders, Goods Receipt |
+| `reportingMfe` | 3005 | Reports, Users (admin) |
 
-In production, all five MFEs are built with `base: '/mfe/<name>/'` and served from the shell's own nginx container — no separate containers at runtime.
+In production, all five MFEs are built with `base: '/mfe/<name>/'` and served from the shell's own nginx container — there are no separate MFE containers at runtime, only at build/CI time.
 
-**Auth context isolation:** Each MFE that needs authentication is exposed via a `*Federated.jsx` wrapper that re-supplies its own `AuthProvider`. Module Federation does not share React Context across remote boundaries, so the wrapper pattern is required to prevent `useAuth()` from returning stale defaults.
+**Auth context isolation:** Module Federation does not share React Context across remote boundaries, so each MFE component that needs auth state is exposed through a `*Federated.jsx` wrapper that re-supplies that MFE's own `AuthProvider`. Without this wrapper, `useAuth()` inside a federated component silently falls back to safe defaults (`canWrite: false`) regardless of the logged-in user's actual role — this was a real bug found and fixed during development.
+
+Each page also has its own React error boundary (`MfeErrorBoundary` in the shell) so a single failed remote (e.g. a 404 on `remoteEntry.js`) degrades to a retry-able error card instead of crashing the whole application.
 
 ---
 
-## Local development
+## 5. Local development
 
 ```bash
 # Start all services + MinIO (local S3) + MySQL
@@ -105,101 +116,79 @@ docker-compose up --build
 open http://localhost:3000
 ```
 
-Docker Compose runs a **MinIO** container as an S3-compatible store for product images — no AWS credentials needed locally. The same code path talks to real S3 on ECS using the task IAM role (`DefaultCredentialsProvider`).
+Docker Compose runs a **MinIO** container as an S3-compatible object store for product images, so no AWS credentials are required locally. In production, the same code path talks to real S3 using the ECS task's IAM role via AWS SDK's `DefaultCredentialsProvider` — image uploads gracefully no-op if neither is available.
 
 ---
 
-## AWS deployment
+## 6. AWS infrastructure (Terraform)
 
-Infrastructure is provisioned with Terraform and applications are deployed via GitHub Actions on every push to `master`, or manually via `workflow_dispatch`.
-
-### First-time setup
-
-```bash
-cd terraform
-terraform init
-terraform apply
-```
+Infrastructure is provisioned with Terraform (`terraform/` directory) and applications are deployed via GitHub Actions on every push to `master`, or manually via `workflow_dispatch`.
 
 ### What Terraform provisions
 
-- **VPC** — 2 AZs, public + private subnets, **1 NAT gateway** (one-per-AZ would double NAT cost; single NAT is an accepted trade-off for a portfolio project — the only impact is loss of outbound internet in the second AZ if the NAT's AZ goes down)
-- **ALB** — path-based routing for all 5 backend services + default to frontend
-- **WAF** — rate-based rule: 100 requests per 5 minutes per IP to `/api/auth/*`, blocking credential stuffing
-- **ECS cluster** — EC2 launch type, `t3.large` instances, ECS Capacity Provider target tracking at `target_capacity=80`
-- **RDS MySQL** — single `db.t3.small` instance, 7-day automated backup retention, deletion protection enabled
-
-  > **Note on RDS Multi-AZ:** Multi-AZ is not enabled (`multi_az = false`). Enabling it would add a synchronous standby in the second AZ for automatic ~60s failover, but it also doubles RDS cost. For a portfolio project that can tolerate a short manual recovery window, single-AZ is an accepted trade-off.
-
-- **ECR** — 6 repositories with **IMMUTABLE** image tags (each CI deploy pushes a new git-SHA-tagged image; re-pushing the same tag is rejected by design)
-- **S3** — product images bucket (versioned, 30-day noncurrent expiry) + compliance reports bucket (versioned, no expiry) + VPC flow logs bucket (90-day expiry, Parquet format)
-- **Secrets Manager** — `DB_PASS`, `JWT_SECRET`, `MAIL_PASSWORD`
-- **CloudWatch alarms** — ALB 5xx rate, ALB 4xx rate, ALB P95 latency, RDS CPU, RDS connection count, RDS free storage, ECS auth-service task count, WAF blocked requests — all routing to an SNS topic (set `alarm_email` in `terraform.tfvars` to receive email alerts)
+- **VPC** — 2 AZs, public + private subnets, **1 NAT gateway** (single NAT is an accepted cost trade-off for a portfolio project; the only downside is loss of outbound internet in the second AZ if that NAT's AZ goes down)
+- **ALB** — path-based routing to all 5 backend services, default route to the frontend; HTTPS/ACM/Route 53 provisioned only when `domain_name` is set
+- **WAF** — a rate-based rule (100 req / 5 min / IP) on `/api/auth/*` to block credential stuffing, plus three AWS managed rule groups: `CommonRuleSet`, `SQLiRuleSet`, and `KnownBadInputsRuleSet`
+- **ECS cluster** — EC2 launch type, `t3.large` instances, ECS Capacity Provider target tracking at `target_capacity=80` (replacing an earlier step-based CPU alarm approach)
+- **RDS MySQL** — one shared `db.t3.small` primary instance (single-AZ, 7-day backup retention, deletion protection enabled) consolidating what was previously 4 separate per-service database instances, plus a dedicated **read replica** for `reporting-service` so analytical queries never compete with transactional load
+- **ECR** — 6 repositories with **IMMUTABLE** image tags; each CI deploy pushes a new git-SHA-tagged image, and re-pushing an existing tag is rejected by design
+- **S3** — product images bucket (versioned, 30-day noncurrent expiry), compliance reports bucket (versioned, no expiry), and VPC flow-logs bucket (90-day expiry, Parquet format)
+- **SSM Parameter Store** — 5 individual SecureString parameters (`DB_PASS`, `JWT_SESSION_SECRET`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `MAIL_PASSWORD`), each encrypted with the AWS-managed `alias/aws/ssm` KMS key and referenced by ECS task definitions via `secrets`/`valueFrom` — no plaintext secrets in task definitions or in the repository
+- **CloudWatch alarms** — ALB 5xx/4xx rate, ALB P95 latency, RDS CPU/connections/free storage, per-service ECS task-count alarms (all 5 backend services), WAF blocked-request rate — all routing to an SNS topic
 - **VPC Flow Logs** — all traffic (ACCEPT + REJECT) to S3 in Parquet format, 90-day retention
-- **AWS X-Ray** — distributed tracing enabled across all 5 backend services via a non-blocking servlet filter (tracing failures never affect request handling)
+- **AWS X-Ray** — distributed tracing across all 5 backend services via a non-blocking servlet filter (tracing failures never affect request handling)
 
 ### Terraform state
 
-State is stored locally (`terraform.tfstate` in the `terraform/` directory). This is a deliberate choice for a solo portfolio project — local state is simpler and has no ongoing cost.
+State is stored **locally** (`terraform.tfstate`) — a deliberate choice for a solo portfolio project, since an S3 backend requires the bucket to already exist before `terraform init` can use it (a chicken-and-egg bootstrap problem) and adds ongoing cost with no benefit for a single contributor.
 
-For team use or CI-managed infrastructure, the S3 backend is already written in `main.tf` (commented out). To enable it:
+### Infrastructure sizing rationale
 
-1. Create the state bucket:
-```bash
-aws s3api create-bucket \
-  --bucket inventoryms-terraform-state \
-  --region ap-south-1 \
-  --create-bucket-configuration LocationConstraint=ap-south-1
+**EC2 (`t3.large`, 6 desired instances):** each instance provides 3 ENIs; with `awsvpc` networking each ECS task consumes one ENI, so the usable task-slot formula is `(instances × 3 ENIs) − instances`. All 5 backend services now run `desired_count=2` (frontend runs `desired_count=1`) for zero-gap rolling deployments, which raised the steady-state task count enough that the EC2 fleet was increased from the original 4 instances to 6 to avoid the ENI-exhaustion "no registered targets" failure mode encountered earlier in the project.
 
-aws s3api put-bucket-versioning \
-  --bucket inventoryms-terraform-state \
-  --versioning-configuration Status=Enabled
-```
-
-2. Uncomment the `backend "s3"` block in `main.tf`
-3. Run `terraform init -migrate-state`
-
-> Terraform requires the S3 bucket to exist **before** `terraform init` — it cannot create the bucket on first run because it needs state storage to already be working. This chicken-and-egg problem is why local state is more practical for solo projects.
+**RDS (`db.t3.small`):** sized one tier above `db.t3.micro` to serve what was previously 4 separate database instances, now consolidated into one shared instance with 4 schemas, plus a read replica dedicated to `reporting-service`.
 
 ---
 
-## CI/CD
+## 7. CI/CD
 
 `.github/workflows/deploy.yml` authenticates to AWS via **GitHub OIDC** (no long-lived AWS keys stored in GitHub), runs on `ubuntu-latest`, and:
 
+- Guards every deploy job behind an `infra-check` step that gracefully skips deployment when the underlying Terraform infrastructure isn't bootstrapped yet, resolving a chicken-and-egg ordering problem between infra and app deploys
 - Detects which services changed per commit using `dorny/paths-filter` — only changed services are rebuilt and redeployed
-- Builds a multi-stage Docker image per service using `maven:3.9-eclipse-temurin-21` → `eclipse-temurin:21-jre-alpine`
-- Tags the image with the **git commit SHA** (not `:latest`) and pushes to ECR
-- Fetches the current ECS task definition, swaps the container image to the new SHA, registers a new task definition revision, and deploys it — this is required for ECR IMMUTABLE tags since `:latest` can never be overwritten
+- Builds a multi-stage Docker image per service (`maven:3.9-eclipse-temurin-21` → `eclipse-temurin:21-jre-alpine`)
+- Tags each image with the **git commit SHA** (never `:latest`) and pushes to ECR
+- Fetches the current ECS task definition, swaps in the new image, registers a new task-definition revision, and deploys it — required because ECR IMMUTABLE tags mean `:latest` can never be overwritten and a bare force-new-deployment would redeploy the same image
 - Supports `workflow_dispatch` with a `deploy_all` input to force a full redeploy of every service
+- Supports a `[skip ci]` commit-message convention for controlled deployment sequencing
 
 ---
 
-## Database migrations
+## 8. Database migrations
 
-All four writable services use **Flyway** for schema management, replacing the previous `hibernate.ddl-auto=update`.
+All four writable services use **Flyway** for schema management, replacing the earlier `hibernate.ddl-auto=update`:
 
 - `spring.jpa.hibernate.ddl-auto=none` — Hibernate no longer touches the schema
-- `spring.flyway.baseline-on-migrate=true` — safe to apply to existing databases; Flyway records the current schema as the baseline without running V1 again
-- Migration files live at `src/main/resources/db/migration/V1__Initial_schema.sql` per service
-- Future schema changes go in `V2__*.sql`, `V3__*.sql`, etc.
+- `spring.flyway.baseline-on-migrate=true` — safe to apply to existing databases
+- Migration files live at `src/main/resources/db/migration/V1__Initial_schema.sql` per service; future changes go in `V2__*.sql`, `V3__*.sql`, etc.
+- `reporting-service` has no migrations of its own — it connects to `inventorydb` read-only and never modifies the schema
 
-`reporting-service` has no migrations — it connects to `inventorydb` in read-only mode and never modifies the schema.
+> Boolean columns are declared `TINYINT(1)` in every migration, not `BIT(1)` — Hibernate 6 fails at startup with a `SchemaManagementException` against `BIT(1)` columns on MySQL.
 
 ---
 
-## Caching
+## 9. Caching
 
 Two services use **Caffeine** in-process caching to reduce database load:
 
-- `inventory-service` — `products` cache (30s TTL) on `ProductService.getAll()` and `StockService.getAllLevels()/getSummary()`, evicted on any write
-- `reporting-service` — `valuation` cache (60s TTL) on `ReportingService.getStockValuation()`, read-only (no eviction needed)
+- `inventory-service` — a 30-second TTL `products` cache on `ProductService.getAll()` and the stock-summary/levels reads in `StockService`, evicted on any write
+- `reporting-service` — a 60-second TTL `valuation` cache on `ReportingService.getStockValuation()`, read-only (no eviction needed since `reporting-service` never writes)
 
 ---
 
-## Report archival
+## 10. Report archival
 
-Every CSV export is archived to S3 under a module-specific folder for compliance:
+Every CSV export (products, stock valuation) is archived to S3 under a module-specific folder for compliance:
 
 ```
 reports/inventory-service/products-export-<timestamp>.csv
@@ -210,34 +199,31 @@ Archival is fire-and-forget — a failed S3 upload never blocks the user's downl
 
 ---
 
-## Shared library
+## 11. Shared library
 
-`shared-lib` is a Maven module providing `JwtUtil` (HS256 JWT sign/validate using JJWT 0.12.5). All three services that handle JWTs (`auth-service`, `inventory-service`, `supplier-service`) use this shared implementation via a `JwtConfig` bean, replacing three previously hand-copied `JwtTokenProvider` classes.
+`shared-lib` is a Maven module providing `JwtUtil` (HS256 JWT sign/validate/parse using JJWT 0.12.5) and the `JwtTokenType` enum. Every `JwtUtil` instance is bound to exactly one signing secret and one token type, and rejects any token whose `typ` claim doesn't match at validation time. `auth-service` registers three qualified beans (session/access/refresh); `inventory-service` and `supplier-service`, which only ever validate incoming access tokens, wire up just the access-typed bean. This consolidates what were previously three independent, hand-duplicated `JwtTokenProvider` classes into one shared implementation.
 
 ---
 
-## Environment variables
+## 12. Environment variables
 
 | Variable | Service(s) | Description |
 |---|---|---|
-| `JWT_SECRET` | auth, inventory, supplier | Base64 HS256 signing key — must be identical across all three |
-| `DB_PASS` | all 5 backend services | RDS MySQL password |
-| `MAIL_USERNAME` | auth, notification | SMTP sender address |
-| `MAIL_PASSWORD` | auth, notification | SMTP password |
+| `JWT_SESSION_SECRET` / `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | auth (all three); inventory, supplier (access only) | HS256 signing keys — one per token type, generated independently (`openssl rand -base64 64`), must be identical across every service that validates that token type |
+| `DB_PASS` | all 5 backend services | Shared RDS MySQL password |
+| `COOKIE_SECURE` | auth-service | Must match whether the ALB terminates HTTPS — `true` blocks the refresh cookie from ever being sent over a plain-HTTP ALB, which silently logs every user out after their access token first expires |
+| `MAIL_USERNAME` / `MAIL_PASSWORD` | auth, notification | SMTP sender credentials — OTPs and alerts fall back to container logs when unset |
 | `ALERT_RECIPIENTS` | notification | Comma-separated alert email list |
-| `NOTIFICATION_SERVICE_URL` | inventory | ALB DNS name in production; Docker Compose hostname locally |
-| `INVENTORY_SERVICE_URL` | supplier | ALB DNS name in production; Docker Compose hostname locally |
-| `REPORTS_BUCKET` | inventory, reporting | S3 bucket name for CSV archival |
-| `AWS_REGION` | inventory, reporting | AWS region for S3 client |
+| `AWS_REGION`, `MINIO_BUCKET` / `REPORTS_BUCKET` | inventory, reporting | S3/MinIO bucket and region for image storage and report archival |
 
-In production, `JWT_SECRET`, `DB_PASS`, and `MAIL_PASSWORD` are stored in AWS Secrets Manager and injected into ECS task definitions at runtime. No secrets are stored in the repository or in ECR images.
+In production, all secret values are stored in **SSM Parameter Store** and injected into ECS task definitions at container-launch time via `secrets`/`valueFrom` — no secrets are ever stored in the repository or baked into ECR images.
 
 ---
 
-## Infrastructure sizing rationale
+## 13. Known gaps
 
-**EC2 — 4 × `t3.large`:** Each instance provides 3 ENIs. With `awsvpc` networking, each ECS task consumes one ENI. Steady-state task count is 8 (`auth×2 + inventory×2 + notification×1 + reporting×1 + supplier×1 + frontend×1`). Formula: `(instances × 3 ENIs) − instances = available task slots`. 4 instances → 8 slots, exactly fitting 8 tasks. `auth-service` and `inventory-service` run `desired_count=2` so rolling deployments replace one task at a time without a service gap.
+Tracked openly rather than silently, per the project's working principle of verifying claims against the live codebase before treating anything as resolved:
 
-**RDS — `db.t3.small`:** Sized one tier above `db.t3.micro` to handle what was previously 4 separate database instances (one per service), now consolidated into a single shared instance with one schema each.
-
-**NAT Gateway — 1:** A second NAT in the second AZ would give AZ-level redundancy for outbound internet but doubles the NAT cost for a risk that is statistically rare. Single NAT is the accepted trade-off for this project.
+- `shared-lib` currently exposes only `JwtUtil`/`JwtTokenType` — the earlier `ApiResponse` and shared exception classes were identified as dead code and removed; each service still owns its own exception-handling implementation, which is an acceptable and intentional scope for the shared module today.
+- Terraform state remains local rather than S3-backed; the S3 backend block exists commented-out in `main.tf` and is a deliberate, revisit-when-needed decision rather than an oversight.
+- HTTPS/custom domain support is implemented in Terraform but inactive by default (gated on `domain_name`) since registering a domain has an ongoing cost outside the scope of a free-tier portfolio budget.
