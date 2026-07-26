@@ -8,7 +8,7 @@ Repository: `github.com/Farhans-Lair/inventory-system` &nbsp;|&nbsp; Region: AWS
 
 ## 1. Overview
 
-InventoryMS is not a toy CRUD app. It works through real distributed-systems problems: role-based access control, tab-isolated JWT authentication with refresh-token rotation, Module Federation micro-frontends, infrastructure hardening, observability, and deployment automation on AWS. The system is deliberately built and iterated to reflect production engineering practices at a portfolio-appropriate cost point.
+InventoryMS addresses real distributed-systems concerns rather than a simple CRUD workflow: role-based access control, tab-isolated JWT authentication with refresh-token rotation, Module Federation micro-frontends, infrastructure hardening, observability, and deployment automation on AWS. The architecture and infrastructure choices reflect production engineering practices scoped to a cost-conscious deployment.
 
 ### Live deployment
 
@@ -67,7 +67,7 @@ All five backend services follow a strict Domain-Driven Design four-layer struct
 
 ## 3. Authentication & session model
 
-Each browser **tab** maintains a fully independent session (a deliberate, verified design choice — not an accidental side-effect of `sessionStorage`):
+Each browser **tab** maintains a fully independent session:
 
 - **Access token** — stored in `sessionStorage`, sent as `Authorization: Bearer <token>`. Tab-scoped: logging in on one tab never affects another tab, even for the same user in the same browser.
 - **Refresh token** — stored in an HttpOnly cookie scoped to `path=/api/auth/`, rotated on every use, with reuse detection: replaying an already-rotated-out refresh token revokes every session for that user, on the assumption the token has been compromised.
@@ -100,7 +100,7 @@ The frontend is a true runtime micro-frontend architecture: a shell application 
 
 In production, all five MFEs are built with `base: '/mfe/<name>/'` and served from the shell's own nginx container — there are no separate MFE containers at runtime, only at build/CI time.
 
-**Auth context isolation:** Module Federation does not share React Context across remote boundaries, so each MFE component that needs auth state is exposed through a `*Federated.jsx` wrapper that re-supplies that MFE's own `AuthProvider`. Without this wrapper, `useAuth()` inside a federated component silently falls back to safe defaults (`canWrite: false`) regardless of the logged-in user's actual role — this was a real bug found and fixed during development.
+**Auth context isolation:** Module Federation does not share React Context across remote boundaries, so each MFE component that needs auth state is exposed through a `*Federated.jsx` wrapper that re-supplies that MFE's own `AuthProvider`. Without this wrapper, `useAuth()` inside a federated component falls back to safe defaults (`canWrite: false`) regardless of the logged-in user's actual role.
 
 Each page also has its own React error boundary (`MfeErrorBoundary` in the shell) so a single failed remote (e.g. a 404 on `remoteEntry.js`) degrades to a retry-able error card instead of crashing the whole application.
 
@@ -140,7 +140,7 @@ Infrastructure is provisioned with Terraform (`terraform/` directory) and applic
 
 ### Terraform state
 
-State is stored **locally** (`terraform.tfstate`) — a deliberate choice for a solo portfolio project, since an S3 backend requires the bucket to already exist before `terraform init` can use it (a chicken-and-egg bootstrap problem) and adds ongoing cost with no benefit for a single contributor.
+State is stored **locally** (`terraform.tfstate`). An S3 backend requires the target bucket to already exist before `terraform init` can use it, and is not required for a single-contributor deployment.
 
 ### Infrastructure sizing rationale
 
@@ -222,8 +222,8 @@ In production, all secret values are stored in **SSM Parameter Store** and injec
 
 ## 13. Known gaps
 
-Tracked openly rather than silently, per the project's working principle of verifying claims against the live codebase before treating anything as resolved:
+Current limitations, tracked for future iterations:
 
 - `shared-lib` currently exposes only `JwtUtil`/`JwtTokenType` — the earlier `ApiResponse` and shared exception classes were identified as dead code and removed; each service still owns its own exception-handling implementation, which is an acceptable and intentional scope for the shared module today.
-- Terraform state remains local rather than S3-backed; the S3 backend block exists commented-out in `main.tf` and is a deliberate, revisit-when-needed decision rather than an oversight.
+- Terraform state remains local rather than S3-backed; the S3 backend configuration exists commented-out in `main.tf` for future migration.
 - HTTPS/custom domain support is implemented in Terraform but inactive by default (gated on `domain_name`) since registering a domain has an ongoing cost outside the scope of a free-tier portfolio budget.
