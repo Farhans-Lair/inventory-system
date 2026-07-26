@@ -13,13 +13,13 @@ public class Location {
     private String id;
 
     @Column(unique = true, nullable = false)
-    private String name;       // e.g. "Zone-A Shelf-01"
+    private String name;
 
     @Column(nullable = false)
-    private String zone;       // A, B, C…
+    private String zone;
 
     private String description;
-    private Integer capacity;  // max units storable
+    private Integer capacity;
 
     @Column(nullable = false)
     private boolean active = true;

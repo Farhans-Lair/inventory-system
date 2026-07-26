@@ -1,13 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# acm.tf — optional ACM certificate for the ALB
-#
-# Only provisioned when var.domain_name is set (default ""). Requires an
-# existing Route53 public hosted zone for that domain — this does NOT
-# create the zone, only records inside it for DNS validation.
-#
-# With var.domain_name = "" (default), none of this is created and the ALB
-# stays HTTP-only exactly as before — this is purely additive.
-# ═══════════════════════════════════════════════════════════════════════════
 
 data "aws_route53_zone" "this" {
   count = var.domain_name != "" ? 1 : 0

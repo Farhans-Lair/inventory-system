@@ -1,5 +1,3 @@
--- V1__Initial_schema.sql
--- supplier-service initial schema.
 
 CREATE TABLE IF NOT EXISTS suppliers (
     id             VARCHAR(36)  NOT NULL,

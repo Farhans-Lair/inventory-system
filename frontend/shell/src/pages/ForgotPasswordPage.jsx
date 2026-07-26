@@ -15,7 +15,7 @@ const s = {
 }
 
 export default function ForgotPasswordPage() {
-  const [step, setStep]         = useState(1)  // 1=email, 2=otp+new pass
+  const [step, setStep]         = useState(1)
   const [email, setEmail]       = useState('')
   const [otp, setOtp]           = useState('')
   const [newPass, setNewPass]   = useState('')

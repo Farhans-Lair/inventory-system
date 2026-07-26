@@ -1,11 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# vpc.tf — VPC, subnets, routing
-# ═══════════════════════════════════════════════════════════════════════════
 
-# ── Availability zones ─────────────────────────────────────────────────────
 data "aws_availability_zones" "available" { state = "available" }
 
-# ── VPC ────────────────────────────────────────────────────────────────────
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -13,7 +8,6 @@ resource "aws_vpc" "main" {
   tags = { Name = "${local.prefix}-vpc" }
 }
 
-# ── Public subnets (ALB lives here) ───────────────────────────────────────
 resource "aws_subnet" "public" {
   count                   = length(var.public_subnet_cidrs)
   vpc_id                  = aws_vpc.main.id
@@ -23,7 +17,6 @@ resource "aws_subnet" "public" {
   tags = { Name = "${local.prefix}-public-${count.index + 1}" }
 }
 
-# ── Private subnets (ECS tasks + RDS live here) ────────────────────────────
 resource "aws_subnet" "private" {
   count             = length(var.private_subnet_cidrs)
   vpc_id            = aws_vpc.main.id
@@ -32,19 +25,11 @@ resource "aws_subnet" "private" {
   tags = { Name = "${local.prefix}-private-${count.index + 1}" }
 }
 
-# ── Internet Gateway (public subnets) ─────────────────────────────────────
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags   = { Name = "${local.prefix}-igw" }
 }
 
-# ── Elastic IP + single NAT Gateway ─────────────────────────────────────────
-# COST TRADEOFF: one NAT Gateway (in public subnet AZ #1) instead of one per AZ.
-# Saves ~half the NAT Gateway hourly charge plus data processing fees, at the
-# cost of: if that AZ has an outage, private-subnet egress (ECR pulls, outbound
-# mail, etc.) breaks for BOTH private subnets, not just one. For a project at
-# this traffic scale that's an acceptable tradeoff; for production-grade
-# multi-AZ resilience, revert to one NAT GW per AZ (see git history).
 resource "aws_eip" "nat" {
   domain = "vpc"
   tags   = { Name = "${local.prefix}-eip-nat" }
@@ -57,7 +42,6 @@ resource "aws_nat_gateway" "main" {
   depends_on    = [aws_internet_gateway.main]
 }
 
-# ── Route table — public ───────────────────────────────────────────────────
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
   route {
@@ -73,7 +57,6 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# ── Route table — private (single table, both AZs route through the one NAT) ─
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
   route {

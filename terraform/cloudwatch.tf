@@ -1,11 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# cloudwatch.tf — application-level alarms
-#
-# All alarms below send to an SNS topic. Set the email variable in
-# terraform.tfvars to receive email notifications. The first 10 alarms are
-# free; beyond that it's $0.10/alarm/month — this file defines 8 alarms,
-# staying in the free tier.
-# ═══════════════════════════════════════════════════════════════════════════
 
 variable "alarm_email" {
   description = "Email address for CloudWatch alarm notifications (leave blank to skip)"
@@ -23,9 +15,6 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alarm_email
 }
 
-# ── 1. ALB 5xx error rate ─────────────────────────────────────────────────
-# Fires when more than 10 server-side errors occur in any 5-minute window.
-# Most useful alarm in the set — catches broken deployments instantly.
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   alarm_name          = "${local.prefix}-alb-5xx-high"
   alarm_description   = "ALB is returning 5xx errors — backend service may be down or crashing"
@@ -44,8 +33,6 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   }
 }
 
-# ── 2. ALB 4xx error rate ─────────────────────────────────────────────────
-# Spikes here often indicate a broken frontend build or CORS misconfiguration.
 resource "aws_cloudwatch_metric_alarm" "alb_4xx" {
   alarm_name          = "${local.prefix}-alb-4xx-high"
   alarm_description   = "ALB 4xx rate is high — possible bad request flood or misconfiguration"
@@ -63,8 +50,6 @@ resource "aws_cloudwatch_metric_alarm" "alb_4xx" {
   }
 }
 
-# ── 3. ALB target response time (latency) ────────────────────────────────
-# P95 latency > 3 seconds means users are experiencing slow responses.
 resource "aws_cloudwatch_metric_alarm" "alb_latency" {
   alarm_name          = "${local.prefix}-alb-latency-high"
   alarm_description   = "ALB P95 response time > 3s — backend service may be under load or hanging"
@@ -82,7 +67,6 @@ resource "aws_cloudwatch_metric_alarm" "alb_latency" {
   }
 }
 
-# ── 4. RDS CPU ────────────────────────────────────────────────────────────
 resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   alarm_name          = "${local.prefix}-rds-cpu-high"
   alarm_description   = "RDS CPU > 80% — consider query optimisation or instance upgrade"
@@ -100,8 +84,6 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   }
 }
 
-# ── 5. RDS connection count ───────────────────────────────────────────────
-# db.t3.small max_connections ≈ 150. Alarm at 120 gives you early warning.
 resource "aws_cloudwatch_metric_alarm" "rds_connections" {
   alarm_name          = "${local.prefix}-rds-connections-high"
   alarm_description   = "RDS connection count > 120 — approaching db.t3.small limit of ~150"
@@ -119,8 +101,6 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
   }
 }
 
-# ── 6. RDS free storage ───────────────────────────────────────────────────
-# Alarm when less than 5GB remains (out of 30GB allocated + 300GB autoscaling).
 resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   alarm_name          = "${local.prefix}-rds-storage-low"
   alarm_description   = "RDS free storage < 5GB — autoscaling should kick in, but verify"
@@ -130,7 +110,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   namespace           = "AWS/RDS"
   period              = 300
   statistic           = "Average"
-  threshold           = 5000000000   # 5 GB in bytes
+  threshold           = 5000000000
   treat_missing_data  = "notBreaching"
   alarm_actions       = [aws_sns_topic.alarms.arn]
   dimensions = {
@@ -138,9 +118,6 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   }
 }
 
-# ── 7. ECS service task count (auth-service) ─────────────────────────────
-# Fires if the number of running tasks drops below desired. Catches
-# crash-loops, OOM kills, and failed deployments that don't self-heal.
 resource "aws_cloudwatch_metric_alarm" "ecs_tasks_auth" {
   alarm_name          = "${local.prefix}-ecs-auth-tasks-low"
   alarm_description   = "auth-service running task count < 1 — service may be crashing"
@@ -151,7 +128,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_tasks_auth" {
   period              = 60
   statistic           = "Average"
   threshold           = 1
-  treat_missing_data  = "breaching"   # missing = bad; task is probably gone
+  treat_missing_data  = "breaching"
   alarm_actions       = [aws_sns_topic.alarms.arn]
   dimensions = {
     ClusterName = aws_ecs_cluster.main.name
@@ -159,10 +136,6 @@ resource "aws_cloudwatch_metric_alarm" "ecs_tasks_auth" {
   }
 }
 
-# ── 7b. ECS service task count — notification/reporting/supplier ─────────
-# Previously only auth-service had task-count coverage; these three ran a
-# single task each with no alarm, so a crash was silent until someone
-# noticed. Same pattern as ecs_tasks_auth above, one per service.
 resource "aws_cloudwatch_metric_alarm" "ecs_tasks_notification" {
   alarm_name          = "${local.prefix}-ecs-notification-tasks-low"
   alarm_description   = "notification-service running task count < 1 — service may be crashing"
@@ -217,8 +190,6 @@ resource "aws_cloudwatch_metric_alarm" "ecs_tasks_supplier" {
   }
 }
 
-# ── 8. WAF blocked requests ───────────────────────────────────────────────
-# Spike here means an active attack is being blocked — worth knowing about.
 resource "aws_cloudwatch_metric_alarm" "waf_blocked" {
   alarm_name          = "${local.prefix}-waf-blocks-high"
   alarm_description   = "WAF blocked > 50 requests in 5 minutes — possible active attack on auth endpoints"

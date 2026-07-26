@@ -44,9 +44,6 @@ export default function StockPage() {
     } catch(err) { setError(err.response?.data?.message || 'Error recording movement') }
   }
 
-  // ── Reservations ─────────────────────────────────────────────────────
-  // Holds back stock for a pending order without physically moving it —
-  // reflected in the levels table's Reserved/Available columns above.
   const loadReservations = () => inventoryApi.getReservations().then(r => setReservations(r.data)).catch(() => {})
 
   const submitReservation = async e => {
@@ -101,7 +98,6 @@ export default function StockPage() {
       </div>
       <p style={{ color: '#6b7280', marginBottom: 20, fontSize: 13 }}>Live stock levels across all locations</p>
 
-      {/* Movement form */}
       {showForm && canWrite && (
         <div style={{ background: '#fff', borderRadius: 10, padding: 20, border: '1px solid #c7d2fe', marginBottom: 20 }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Record Stock Movement</h2>
@@ -164,7 +160,6 @@ export default function StockPage() {
         </div>
       )}
 
-      {/* Reservations panel */}
       {showReservations && canWrite && (
         <div style={{ background: '#fff', borderRadius: 10, padding: 20, border: '1px solid #99f6e4', marginBottom: 20 }}>
           <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Stock Reservations</h2>
@@ -245,7 +240,6 @@ export default function StockPage() {
         </div>
       )}
 
-      {/* Filter tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
           ['all',      'All'],
@@ -263,7 +257,6 @@ export default function StockPage() {
         ))}
       </div>
 
-      {/* Levels table */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--border)', overflow: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 780 }}>
           <thead style={{ background: '#f9fafb' }}>

@@ -41,7 +41,6 @@ export default function ReportsPage() {
         <div style={card}><div style={{color:'#6b7280',fontSize:12,textTransform:'uppercase',letterSpacing:.5}}>Total Selling Value</div><div style={{fontSize:24,fontWeight:700,color:'#059669'}}>₹{totalSell.toLocaleString()}</div></div>
       </div>
 
-      {/* Movement trend */}
       <div style={card}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
           <h2 style={{fontSize:15,fontWeight:600}}>Movement trend</h2>
@@ -64,7 +63,6 @@ export default function ReportsPage() {
         </ResponsiveContainer>
       </div>
 
-      {/* Valuation table */}
       <div style={card}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
           <h2 style={{fontSize:15,fontWeight:600}}>Stock valuation</h2>

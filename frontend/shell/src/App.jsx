@@ -7,29 +7,23 @@ import ForgotPasswordPage             from './pages/ForgotPasswordPage'
 import Layout                         from './components/Layout'
 import ProtectedRoute                 from './components/ProtectedRoute'
 
-// ── dashboardMfe remote ────────────────────────────────────────────────────
 const DashboardPage   = lazy(() => import('dashboardMfe/DashboardPage'))
 
-// ── productsMfe remote ─────────────────────────────────────────────────────
 const ProductsPage    = lazy(() => import('productsMfe/ProductsPage'))
 const LocationsPage   = lazy(() => import('productsMfe/LocationsPage'))
 const BatchLotsPage   = lazy(() => import('productsMfe/BatchLotsPage'))
 const CycleCountsPage = lazy(() => import('productsMfe/CycleCountsPage'))
 const UomPage         = lazy(() => import('productsMfe/UomPage'))
 
-// ── stockMfe remote ────────────────────────────────────────────────────────
 const StockPage       = lazy(() => import('stockMfe/StockPage'))
 const MovementsPage   = lazy(() => import('stockMfe/MovementsPage'))
 
-// ── supplierMfe remote ─────────────────────────────────────────────────────
 const SuppliersPage      = lazy(() => import('supplierMfe/SuppliersPage'))
 const PurchaseOrdersPage = lazy(() => import('supplierMfe/PurchaseOrdersPage'))
 
-// ── reportingMfe remote ────────────────────────────────────────────────────
 const ReportsPage  = lazy(() => import('reportingMfe/ReportsPage'))
 const UsersPage    = lazy(() => import('reportingMfe/UsersPage'))
 
-// ── Loading fallback ───────────────────────────────────────────────────────
 function Loading() {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center',
@@ -39,10 +33,6 @@ function Loading() {
   )
 }
 
-// ── MFE Error Boundary ─────────────────────────────────────────────────────
-// Catches errors thrown by a failed Module Federation remote (e.g. when
-// remoteEntry.js returns a 404 or the fetched script throws a SyntaxError).
-// Without this, ONE failed MFE crashes the entire React tree → blank page.
 class MfeErrorBoundary extends Component {
   constructor(props) {
     super(props)
@@ -88,7 +78,6 @@ class MfeErrorBoundary extends Component {
   }
 }
 
-// ── Protected layout with per-page error isolation ─────────────────────────
 function AppLayout({ children, adminOnly = false, mfeName }) {
   return (
     <ProtectedRoute adminOnly={adminOnly}>
@@ -107,12 +96,10 @@ export default function App() {
   const { user } = useAuth()
   return (
     <Routes>
-      {/* ── Public ──────────────────────────────────────────────────────── */}
       <Route path="/login"           element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/signup"          element={user ? <Navigate to="/" replace /> : <SignupPage />} />
       <Route path="/forgot-password" element={user ? <Navigate to="/" replace /> : <ForgotPasswordPage />} />
 
-      {/* ── Protected — each page isolated in its own ErrorBoundary ──────── */}
       <Route path="/"                element={<AppLayout mfeName="Dashboard"><DashboardPage /></AppLayout>} />
       <Route path="/products"        element={<AppLayout mfeName="Products"><ProductsPage /></AppLayout>} />
       <Route path="/locations"       element={<AppLayout mfeName="Locations"><LocationsPage /></AppLayout>} />

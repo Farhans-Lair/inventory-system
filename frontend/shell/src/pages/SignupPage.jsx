@@ -2,10 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/client'
 
-// Public self-signup is limited to non-admin roles UNLESS this is the very
-// first account (zero admins exist yet — server bootstrap). The server
-// enforces this rule independently; showing the option in the UI is just a
-// convenience that matches the backend behaviour.
 const NON_ADMIN_ROLES = [
   { value: 'WAREHOUSE_MANAGER', label: 'Warehouse Manager',  desc: 'Manage stock, suppliers and purchase orders' },
   { value: 'STAKEHOLDER',       label: 'Stakeholder',        desc: 'View-only access to reports and dashboards' },
@@ -22,18 +18,18 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [sessionToken, setSessionToken] = useState('')
   const [error, setError] = useState('')
-  // Bootstrap probe — shows Admin role only when zero admins exist yet
-  const [adminExists, setAdminExists] = useState(true) // default true = hide admin option (safe default)
+
+  const [adminExists, setAdminExists] = useState(true)
   const [rolesLoaded, setRolesLoaded] = useState(false)
 
   useEffect(() => {
     authApi.adminExists()
       .then(r => {
         setAdminExists(r.data.adminExists)
-        // If no admin exists yet, pre-select Admin to make it obvious for the first user
+
         if (!r.data.adminExists) setForm(f => ({ ...f, role: 'ADMIN' }))
       })
-      .catch(() => setAdminExists(true)) // on any error, stay safe: hide admin option
+      .catch(() => setAdminExists(true))
       .finally(() => setRolesLoaded(true))
   }, [])
 
@@ -70,7 +66,6 @@ export default function SignupPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', fontFamily: 'var(--font-body)' }}>
 
-      {/* ── Left panel — consistent with login ─────────────────────── */}
       <div style={{
         flex: '0 0 40%', background: 'var(--deep)', color: '#fff',
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
@@ -108,7 +103,6 @@ export default function SignupPage() {
         <div />
       </div>
 
-      {/* ── Right: form ──────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: '24px' }}>
         <div className="card" style={{ width: '100%', maxWidth: 460, padding: '36px 40px' }}>
 

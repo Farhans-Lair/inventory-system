@@ -23,7 +23,7 @@ public class CycleCount {
 
     private int systemQuantity;
     private int countedQuantity;
-    private int variance;          // counted - system
+    private int variance;
 
     private String notes;
     private String countedBy;

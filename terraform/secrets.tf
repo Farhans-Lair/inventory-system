@@ -1,13 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# secrets.tf — SSM Parameter Store (SecureString) for actual sensitive values
-#
-# One parameter per secret, not one combined JSON blob — ECS task defs
-# reference `secrets: valueFrom` with a plain parameter ARN for SSM
-# (unlike Secrets Manager, there's no ":JSON_KEY::" suffix syntax here).
-# All five are SecureString, encrypted with the default AWS-managed
-# "alias/aws/ssm" KMS key — see iam.tf for the matching kms:Decrypt grant
-# the execution role needs to actually read them at task launch.
-# ═══════════════════════════════════════════════════════════════════════════
 
 resource "aws_ssm_parameter" "db_pass" {
   name        = "/${local.prefix}/DB_PASS"

@@ -1,6 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# outputs.tf — useful values printed after terraform apply
-# ═══════════════════════════════════════════════════════════════════════════
 
 output "alb_dns" {
   description = "Public URL of the Application Load Balancer"

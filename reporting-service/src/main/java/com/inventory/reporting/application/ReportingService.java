@@ -73,8 +73,7 @@ public class ReportingService {
             r.getSellingPrice().toPlainString(), r.getTotalSellingValue().toPlainString()))
             .append("\n"));
         byte[] csv = sb.toString().getBytes(StandardCharsets.UTF_8);
-        // Compliance: archive every generated report to S3 under its own module
-        // folder. A storage failure must never block the user's download.
+
         reportStorageService.uploadReport("reporting-service", "valuation-export", csv, "csv");
         return csv;
     }

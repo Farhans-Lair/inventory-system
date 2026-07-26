@@ -9,12 +9,8 @@ import lombok.NoArgsConstructor;
 public class OtpRequestResponse {
     private String message;
     private String email;
-    // Only populated in dev mode (when SMTP is not configured).
-    // Never populated in production.
+
     private String devOtp;
-    // Short-lived JWT (10 min, matches OTP expiry) the client must send back
-    // on the matching verify-otp / reset-password call. Proves the caller
-    // actually went through this request-OTP step for this email+purpose —
-    // see AuthService.validateSessionToken.
+
     private String sessionToken;
 }

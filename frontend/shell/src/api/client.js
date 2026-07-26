@@ -1,27 +1,10 @@
 import axios from 'axios'
 
-/**
- * TAB-ISOLATED API CLIENT
- *
- * Every request sends Authorization: Bearer <token> from this tab's sessionStorage.
- * This ensures each tab independently authenticates with its own user's token.
- *
- * withCredentials: true is kept so the browser sends the refresh_token HttpOnly
- * cookie to /api/auth/refresh for token rotation.
- *
- * Token refresh flow:
- * 1. Request gets 401 (access token expired)
- * 2. POST /api/auth/refresh — browser sends refresh_token cookie automatically
- * 3. Server validates refresh token, rotates it, returns new access token in body
- * 4. New access token stored in this tab's sessionStorage
- * 5. Original request retried with new token
- */
 const client = axios.create({
   baseURL: '/',
-  withCredentials: true, // needed for refresh_token cookie on /api/auth/ endpoints
+  withCredentials: true,
 })
 
-// ── Request interceptor: attach this tab's access token ──────────────────
 client.interceptors.request.use(config => {
   const token = sessionStorage.getItem('access_token')
   if (token) {
@@ -30,7 +13,6 @@ client.interceptors.request.use(config => {
   return config
 })
 
-// ── Response interceptor: handle 401 with token refresh ──────────────────
 let isRefreshing = false
 let failedQueue  = []
 
@@ -46,12 +28,11 @@ client.interceptors.response.use(
     const originalReq = err.config
     const url         = originalReq?.url || ''
 
-    // Never retry auth endpoints — prevents infinite loops
     const isAuthEndpoint = url.includes('/api/auth/')
 
     if (status === 401 && !originalReq._retry && !isAuthEndpoint) {
       if (isRefreshing) {
-        // Another request already triggered refresh — queue this one
+
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         }).then(token => {
@@ -64,14 +45,12 @@ client.interceptors.response.use(
       isRefreshing = true
 
       try {
-        // POST /api/auth/refresh — browser sends refresh_token cookie automatically.
-        // Server rotates refresh token and returns new access token in body.
+
         const { data } = await client.post('/api/auth/refresh')
         const newToken = data.accessToken
 
         sessionStorage.setItem('access_token', newToken)
 
-        // Also update user profile if server returned it
         if (data.userId) {
           const u = {
             userId:   data.userId,
@@ -88,7 +67,7 @@ client.interceptors.response.use(
 
       } catch (refreshError) {
         processQueue(refreshError, null)
-        // Refresh token expired/invalid — clear this tab's session and redirect
+
         sessionStorage.removeItem('access_token')
         sessionStorage.removeItem('user')
         window.location.href = '/login'
@@ -102,13 +81,12 @@ client.interceptors.response.use(
   }
 )
 
-// ── Auth ──────────────────────────────────────────────────────────────────
 export const authApi = {
   initiateSignup:   d  => client.post('/api/auth/signup', d),
   verifySignup:     d  => client.post('/api/auth/verify-signup', d),
   initiateLogin:    d  => client.post('/api/auth/login', d),
   verifyLogin:      d  => client.post('/api/auth/verify-login', d),
-  // Bootstrap probe — called by signup page to decide whether to show Admin role
+
   adminExists:      () => client.get('/api/auth/admin-exists'),
   forgotPassword:   d  => client.post('/api/auth/forgot-password', d),
   resetPassword:    d  => client.post('/api/auth/reset-password', d),
@@ -118,7 +96,6 @@ export const authApi = {
   toggleActive:     id => client.patch(`/api/users/${id}/toggle-active`),
 }
 
-// ── Inventory ─────────────────────────────────────────────────────────────
 export const inventoryApi = {
   getSummary:              ()          => client.get('/api/stock/summary'),
   getProducts:             ()          => client.get('/api/products'),
@@ -172,7 +149,6 @@ export const inventoryApi = {
   getDiscrepancies:        ()          => client.get('/api/cycle-counts/discrepancies'),
 }
 
-// ── Reporting ─────────────────────────────────────────────────────────────
 export const reportingApi = {
   getValuation:    ()         => client.get('/api/reports/valuation'),
   exportValuation: ()         => client.get('/api/reports/valuation/export', { responseType: 'blob' }),
@@ -180,7 +156,6 @@ export const reportingApi = {
   getTrend:        days       => client.get(`/api/reports/trend?days=${days}`),
 }
 
-// ── Supplier ──────────────────────────────────────────────────────────────
 export const supplierApi = {
   getSuppliers:      ()       => client.get('/api/suppliers'),
   createSupplier:    d        => client.post('/api/suppliers', d),
@@ -193,7 +168,6 @@ export const supplierApi = {
   receiveGoods:      (poId,d) => client.post(`/api/purchase-orders/${poId}/grn`, d),
 }
 
-// ── Notifications ─────────────────────────────────────────────────────────
 export const notificationApi = {
   getLogs:   () => client.get('/api/notifications/logs'),
   getFailed: () => client.get('/api/notifications/logs/failed'),

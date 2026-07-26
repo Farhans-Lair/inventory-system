@@ -1,6 +1,5 @@
 import { createContext, useContext, useState } from 'react'
 
-// Safe default prevents null destructuring when component mounts without AuthProvider
 const defaultContext = {
   user:          null,
   isAdmin:       false,
@@ -11,11 +10,6 @@ const defaultContext = {
 
 const AuthContext = createContext(defaultContext)
 
-/**
- * Reads user profile from sessionStorage (tab-scoped).
- * Each tab has its own independent session — logging in/out
- * on one tab does not affect other tabs.
- */
 export function AuthProvider({ children }) {
   const stored = (() => {
     try { const s = sessionStorage.getItem('user'); return s ? JSON.parse(s) : null }
@@ -34,4 +28,3 @@ export function AuthProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext)
-

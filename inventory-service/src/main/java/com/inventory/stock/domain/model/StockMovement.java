@@ -35,7 +35,7 @@ public class StockMovement {
     private String reason;
 
     @Column(name = "reason_code")
-    private String reasonCode;  // e.g. DAMAGED, EXPIRED, SOLD, RETURNED, ADJUSTMENT
+    private String reasonCode;
 
     private String performedBy;
 

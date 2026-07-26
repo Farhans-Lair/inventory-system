@@ -30,7 +30,6 @@ public class ProductService {
     private final ReportStorageService     reportStorageService;
     private final BarcodeService           barcodeService;
 
-    // ── CRUD ────────────────────────────────────────────────────────────
     @Cacheable("products")
     public List<ProductDto> getAll() {
         return productRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
@@ -82,13 +81,12 @@ public class ProductService {
         p.setActive(true); productRepository.save(p);
     }
 
-    // ── A1: Image upload ─────────────────────────────────────────────────
     @Transactional
     @CacheEvict(value = "products", allEntries = true)
     public ProductDto uploadImage(String productId, MultipartFile file) {
         Product p = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
-        // Delete old image if it was stored in MinIO (not an external URL)
+
         if (p.getImageUrl() != null && !p.getImageUrl().startsWith("http"))
             storageService.deleteImage(p.getImageUrl());
         String key = storageService.uploadImage(file, productId);
@@ -96,7 +94,6 @@ public class ProductService {
         return toDto(productRepository.save(p));
     }
 
-    // ── A2: Barcode / QR generation ───────────────────────────────────────
     public BarcodeResponse generateBarcode(String productId, String type) {
         Product p = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + productId));
@@ -111,13 +108,12 @@ public class ProductService {
                 .build();
     }
 
-    // ── A3: CSV import / export (enhanced with new fields) ────────────────
     @CacheEvict(value = "products", allEntries = true)
     public List<ProductDto> importFromCsv(MultipartFile file) throws IOException {
         List<ProductDto> imported = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(
                 new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-            br.readLine(); // skip header
+            br.readLine();
             String line;
             while ((line = br.readLine()) != null) {
                 if (line.isBlank()) continue;
@@ -153,13 +149,11 @@ public class ProductService {
             )).append("\n");
         }
         byte[] csv = sb.toString().getBytes(StandardCharsets.UTF_8);
-        // Compliance: archive every generated report to S3 under its own module
-        // folder. A storage failure must never block the user's download.
+
         reportStorageService.uploadReport("inventory-service", "products-export", csv, "csv");
         return csv;
     }
 
-    // ── A5: Variants ─────────────────────────────────────────────────────
     public List<ProductVariantDto> getVariants(String productId) {
         return variantRepository.findByProductId(productId)
                 .stream().map(this::toVariantDto).collect(Collectors.toList());
@@ -197,11 +191,10 @@ public class ProductService {
         variantRepository.save(v);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
     private ProductDto toDto(Product p) {
         int total = stockLevelRepository.findByProductId(p.getId())
                 .stream().mapToInt(sl -> sl.getQuantity()).sum();
-        // Resolve image URL — generate presigned URL if stored in MinIO
+
         String imageUrl = storageService.getPresignedUrl(p.getImageUrl());
         return ProductDto.builder()
                 .id(p.getId()).sku(p.getSku()).name(p.getName())
@@ -231,7 +224,6 @@ public class ProductService {
         return s.contains(",") ? "\"" + s.replace("\"", "\"\"") + "\"" : s;
     }
 
-    /** Handle quoted CSV fields. */
     private String[] parseCsvLine(String line) {
         List<String> result = new ArrayList<>();
         boolean inQuote = false;

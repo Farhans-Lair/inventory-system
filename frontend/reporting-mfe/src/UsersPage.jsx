@@ -38,7 +38,6 @@ export default function UsersPage() {
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 20 }}>User Management</h1>
 
-      {/* Create user form */}
       <div style={{ background: '#fff', borderRadius: 10, padding: 20, border: '1px solid var(--border)', marginBottom: 24 }}>
         <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Create new user</h2>
         <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
@@ -63,7 +62,6 @@ export default function UsersPage() {
         </form>
       </div>
 
-      {/* Users table */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: '#f9fafb' }}>

@@ -16,7 +16,7 @@
 
   <dependencyManagement>
     <dependencies>
-      <!-- AWS SDK BOM: aligns all AWS SDK module versions and their transitive deps -->
+
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>bom</artifactId>
@@ -40,21 +40,17 @@
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-impl</artifactId><version>0.12.5</version><scope>runtime</scope></dependency>
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>0.12.5</version><scope>runtime</scope></dependency>
 
-    <!-- Shared cross-cutting utilities -->
     <dependency>
       <groupId>com.inventory</groupId>
       <artifactId>shared-lib</artifactId>
       <version>1.0.0</version>
     </dependency>
 
-    <!-- AWS S3 SDK for image uploads (IAM role-based auth via ECS task role) -->
-    <!-- Version managed by AWS SDK BOM in dependencyManagement above -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>s3</artifactId>
     </dependency>
 
-    <!-- ZXing barcode / QR code generation -->
     <dependency>
       <groupId>com.google.zxing</groupId>
       <artifactId>core</artifactId>
@@ -66,7 +62,6 @@
       <version>3.5.3</version>
     </dependency>
 
-    <!-- OpenCSV for CSV import/export -->
     <dependency>
       <groupId>com.opencsv</groupId>
       <artifactId>opencsv</artifactId>
@@ -75,14 +70,11 @@
 
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
 
-    <!-- Flyway: controlled DB schema migrations -->
     <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-mysql</artifactId></dependency>
 
-    <!-- Spring Cache + Caffeine: in-process cache for read-heavy endpoints -->
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-cache</artifactId></dependency>
     <dependency><groupId>com.github.ben-manes.caffeine</groupId><artifactId>caffeine</artifactId></dependency>
 
-    <!-- AWS X-Ray: distributed tracing -->
     <dependency><groupId>com.amazonaws</groupId><artifactId>aws-xray-recorder-sdk-core</artifactId><version>2.14.0</version></dependency>
   </dependencies>
 

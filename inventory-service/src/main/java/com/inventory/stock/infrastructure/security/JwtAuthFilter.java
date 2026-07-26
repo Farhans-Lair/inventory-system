@@ -44,18 +44,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         chain.doFilter(req, res);
     }
 
-    /**
-     * Token extraction priority:
-     * 1. Authorization: Bearer header — tab-isolated token from sessionStorage
-     * 2. access_token cookie — backward-compatible fallback for local dev
-     */
     private String extractToken(HttpServletRequest req) {
-        // 1. Authorization header first (tab-isolated sessionStorage token)
+
         String header = req.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             return header.substring(7);
         }
-        // 2. Cookie fallback
+
         if (req.getCookies() != null) {
             for (Cookie c : req.getCookies()) {
                 if ("access_token".equals(c.getName())) {

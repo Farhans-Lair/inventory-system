@@ -36,18 +36,14 @@ public class UomService {
 
     public void delete(String id) { repo.deleteById(id); }
 
-    /**
-     * Convert a quantity from one unit to another.
-     * Tries direct conversion first, then reverse.
-     */
     public UomConversionDto convert(String fromUnit, String toUnit, double quantity) {
-        // Try direct
+
         var direct = repo.findByFromUnitAndToUnit(fromUnit, toUnit);
         if (direct.isPresent()) {
             UomConversion c = direct.get();
             return toDto(c, quantity, c.convert(quantity));
         }
-        // Try reverse
+
         var reverse = repo.findByFromUnitAndToUnit(toUnit, fromUnit);
         if (reverse.isPresent()) {
             UomConversion c = reverse.get();

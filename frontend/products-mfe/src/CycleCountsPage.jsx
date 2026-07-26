@@ -8,7 +8,7 @@ const inp = { padding:'8px 12px', border:'1px solid #d1d5db', borderRadius:6, fo
 export default function CycleCountsPage() {
   const [pending,       setPending]       = useState([])
   const [discrepancies, setDiscrepancies] = useState([])
-  const [submitting,    setSubmitting]    = useState({})  // id -> countedQuantity
+  const [submitting,    setSubmitting]    = useState({})
 
   const load = () => {
     inventoryApi.getPendingCounts().then(r=>setPending(r.data)).catch(()=>{})

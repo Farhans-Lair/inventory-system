@@ -1,17 +1,4 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# asg.tf — EC2 Auto Scaling Group for ECS
-#
-# Replaces Fargate with EC2-backed ECS.
-# The ASG provisions ECS-optimized EC2 instances that register automatically
-# with the ECS cluster. The ECS Capacity Provider manages scaling based on
-# actual task demand — it adds instances when tasks can't be placed and
-# removes them when utilization drops.
-#
-# Instance sizing: t3.large (2 vCPU / 8 GB) handles all 6 services
-# with ~40% headroom for rolling deployments.
-# ═══════════════════════════════════════════════════════════════════════════
 
-# Latest ECS-optimized Amazon Linux 2023 AMI
 data "aws_ami" "ecs_optimized" {
   most_recent = true
   owners      = ["amazon"]
@@ -25,7 +12,6 @@ data "aws_ami" "ecs_optimized" {
   }
 }
 
-# ── IAM instance profile for EC2 ECS instances ────────────────────────────
 resource "aws_iam_role" "ecs_instance" {
   name = "${local.prefix}-ecs-instance-role"
   assume_role_policy = jsonencode({
@@ -43,7 +29,6 @@ resource "aws_iam_role_policy_attachment" "ecs_instance" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 }
 
-# SSM access — lets you shell into instances without SSH key
 resource "aws_iam_role_policy_attachment" "ecs_instance_ssm" {
   role       = aws_iam_role.ecs_instance.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -54,13 +39,6 @@ resource "aws_iam_instance_profile" "ecs_instance" {
   role = aws_iam_role.ecs_instance.name
 }
 
-# ── Security group for EC2 ECS instances ──────────────────────────────────
-# Previously allowed all 65535 ports from anywhere in the VPC CIDR. Since
-# ECS tasks already run in awsvpc mode with their own dedicated security
-# group (aws_security_group.ecs), the host-level group here only needs to
-# allow the ECS agent's own traffic plus the same service ports — not every
-# port for every address in the VPC (which would include RDS, NAT, and
-# anything else ever added to this network).
 resource "aws_security_group" "ec2_ecs" {
   name        = "${local.prefix}-sg-ec2-ecs"
   description = "EC2 ECS instances - scoped to service ports + ECS agent"
@@ -77,7 +55,6 @@ resource "aws_security_group" "ec2_ecs" {
     }
   }
 
-  # ECS agent <-> ECS service control plane traffic between instances
   ingress {
     description = "ECS agent introspection (51678/51679)"
     from_port   = 51678
@@ -94,7 +71,6 @@ resource "aws_security_group" "ec2_ecs" {
   }
 }
 
-# ── Launch Template ────────────────────────────────────────────────────────
 resource "aws_launch_template" "ecs" {
   name_prefix   = "${local.prefix}-ecs-lt-"
   image_id      = data.aws_ami.ecs_optimized.id
@@ -110,9 +86,8 @@ resource "aws_launch_template" "ecs" {
     delete_on_termination       = true
   }
 
-  # Register EC2 instance with ECS cluster on boot
   user_data = base64encode(<<-EOF
-    #!/bin/bash
+
     echo "ECS_CLUSTER=${aws_ecs_cluster.main.name}" >> /etc/ecs/ecs.config
     echo "ECS_ENABLE_CONTAINER_METADATA=true"       >> /etc/ecs/ecs.config
     echo "ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE=true" >> /etc/ecs/ecs.config
@@ -141,7 +116,6 @@ resource "aws_launch_template" "ecs" {
   lifecycle { create_before_destroy = true }
 }
 
-# ── Auto Scaling Group ─────────────────────────────────────────────────────
 resource "aws_autoscaling_group" "ecs" {
   name                      = "${local.prefix}-ecs-asg"
   min_size                  = var.ec2_min_instances
@@ -151,7 +125,6 @@ resource "aws_autoscaling_group" "ecs" {
   health_check_type         = "EC2"
   health_check_grace_period = 300
 
-  # Protect instances from scale-in while ECS tasks are running
   protect_from_scale_in = true
 
   launch_template {
@@ -175,7 +148,6 @@ resource "aws_autoscaling_group" "ecs" {
   }
 }
 
-# ── ECS Capacity Provider — links the ASG to ECS ──────────────────────────
 resource "aws_ecs_capacity_provider" "ec2" {
   name = "${local.prefix}-ec2-cp"
 
@@ -185,7 +157,7 @@ resource "aws_ecs_capacity_provider" "ec2" {
 
     managed_scaling {
       status                    = "ENABLED"
-      target_capacity           = 80   # keep instances at 80% utilization
+      target_capacity           = 80
       minimum_scaling_step_size = 1
       maximum_scaling_step_size = 3
       instance_warmup_period    = 300

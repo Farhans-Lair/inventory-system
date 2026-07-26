@@ -11,9 +11,9 @@ export default function ProductsPage() {
   const [products,  setProducts]  = useState([])
   const [form,      setForm]      = useState(EMPTY)
   const [editing,   setEditing]   = useState(null)
-  const [expanded,  setExpanded]  = useState(null)  // product id with open variants panel
-  const [variants,  setVariants]  = useState({})    // productId -> variant[]
-  const [barcode,   setBarcode]   = useState(null)  // { productId, imageBase64, type }
+  const [expanded,  setExpanded]  = useState(null)
+  const [variants,  setVariants]  = useState({})
+  const [barcode,   setBarcode]   = useState(null)
   const [error,     setError]     = useState('')
   const [success,   setSuccess]   = useState('')
   const [varForm,   setVarForm]   = useState({ sku:'', name:'', attributes:'', costPriceOverride:'', sellingPriceOverride:'' })
@@ -101,7 +101,6 @@ export default function ProductsPage() {
         <button onClick={exportCsv} style={{ padding: '7px 16px', background: '#f3f4f6', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>↓ Export CSV</button>
       </div>
 
-      {/* Barcode modal */}
       {barcode && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:999, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div style={{ background:'#fff', borderRadius:12, padding:24, maxWidth:380, width:'100%' }}>
@@ -120,7 +119,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Add / Edit form */}
       {canWrite && (
         <div style={{ background: '#fff', borderRadius: 10, padding: 20, border: `1px solid ${editing ? '#a5b4fc' : 'var(--border)'}`, marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -161,7 +159,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Products table */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: '#f9fafb' }}>
@@ -205,12 +202,11 @@ export default function ProductsPage() {
                   </td>
                 )}
               </tr>,
-              // Variants panel
+
               expanded === p.id && (
                 <tr key={`var-${p.id}`}>
                   <td colSpan={canWrite ? 10 : 9} style={{ background:'#f8fafc', padding:'16px 20px', borderBottom:'1px solid #e5e7eb' }}>
                     <div style={{ fontSize:13, fontWeight:600, marginBottom:12, color:'var(--primary)' }}>Variants for {p.name}</div>
-                    {/* Variant form */}
                     <form onSubmit={e => addVariant(p.id, e)} style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8, marginBottom:14 }}>
                       <input style={{ ...inp, fontSize:12 }} placeholder="Variant SKU *" value={varForm.sku} onChange={e => setVarForm(f=>({...f,sku:e.target.value}))} required />
                       <input style={{ ...inp, fontSize:12 }} placeholder="Name e.g. Red/XL" value={varForm.name} onChange={e => setVarForm(f=>({...f,name:e.target.value}))} required />
@@ -218,7 +214,6 @@ export default function ProductsPage() {
                       <input style={{ ...inp, fontSize:12 }} type="number" min="0" step="0.01" placeholder="Cost override" value={varForm.costPriceOverride} onChange={e => setVarForm(f=>({...f,costPriceOverride:e.target.value}))} />
                       <button type="submit" style={{ background:'var(--primary)', color:'#fff', border:'none', borderRadius:6, fontSize:12, cursor:'pointer', fontWeight:600 }}>+ Add</button>
                     </form>
-                    {/* Variant list */}
                     {(variants[p.id] || []).length === 0
                       ? <div style={{ color:'#9ca3af', fontSize:12 }}>No variants yet</div>
                       : (variants[p.id] || []).map(v => (

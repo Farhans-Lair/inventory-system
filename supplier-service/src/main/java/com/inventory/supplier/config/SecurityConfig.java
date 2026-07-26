@@ -33,8 +33,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // 401 (not 403) for unauthenticated requests so the frontend axios
-            // interceptor correctly triggers token refresh instead of failing silently.
+
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
@@ -45,10 +44,10 @@ public class SecurityConfig {
                     "/actuator/health/liveness",
                     "/actuator/info"
                 ).permitAll()
-                // All authenticated roles can read suppliers/purchase-orders/GRNs
+
                 .requestMatchers(HttpMethod.GET, "/api/suppliers/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
                 .requestMatchers(HttpMethod.GET, "/api/purchase-orders/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                // Only Admin and Warehouse Manager can write (create/update/toggle/receive goods)
+
                 .anyRequest().hasAnyRole("ADMIN","WAREHOUSE_MANAGER")
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

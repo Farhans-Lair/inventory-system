@@ -1,19 +1,10 @@
 import axios from 'axios'
 
-/**
- * TAB-ISOLATED MFE API CLIENT
- *
- * Sends Authorization: Bearer header using this tab's access token
- * from sessionStorage. Each tab is independently authenticated.
- *
- * withCredentials: true kept for refresh_token cookie on /api/auth/refresh.
- */
 const client = axios.create({
   baseURL: '/',
   withCredentials: true,
 })
 
-// ── Request interceptor: attach this tab's access token ──────────────────
 client.interceptors.request.use(config => {
   const token = sessionStorage.getItem('access_token')
   if (token) {
@@ -22,7 +13,6 @@ client.interceptors.request.use(config => {
   return config
 })
 
-// ── Response interceptor: handle 401 with token refresh ──────────────────
 let isRefreshing = false
 let failedQueue  = []
 
@@ -80,7 +70,6 @@ client.interceptors.response.use(
   }
 )
 
-// ── Auth ──────────────────────────────────────────────────────────────────
 export const authApi = {
   initiateSignup:   d  => client.post('/api/auth/signup', d),
   verifySignup:     d  => client.post('/api/auth/verify-signup', d),
@@ -94,7 +83,6 @@ export const authApi = {
   toggleActive:     id => client.patch(`/api/users/${id}/toggle-active`),
 }
 
-// ── Inventory ─────────────────────────────────────────────────────────────
 export const inventoryApi = {
   getSummary:              ()          => client.get('/api/stock/summary'),
   getProducts:             ()          => client.get('/api/products'),
@@ -148,7 +136,6 @@ export const inventoryApi = {
   getDiscrepancies:        ()          => client.get('/api/cycle-counts/discrepancies'),
 }
 
-// ── Reporting ─────────────────────────────────────────────────────────────
 export const reportingApi = {
   getValuation:    ()         => client.get('/api/reports/valuation'),
   exportValuation: ()         => client.get('/api/reports/valuation/export', { responseType: 'blob' }),
@@ -156,7 +143,6 @@ export const reportingApi = {
   getTrend:        days       => client.get(`/api/reports/trend?days=${days}`),
 }
 
-// ── Supplier ──────────────────────────────────────────────────────────────
 export const supplierApi = {
   getSuppliers:      ()       => client.get('/api/suppliers'),
   createSupplier:    d        => client.post('/api/suppliers', d),
@@ -169,7 +155,6 @@ export const supplierApi = {
   receiveGoods:      (poId,d) => client.post(`/api/purchase-orders/${poId}/grn`, d),
 }
 
-// ── Notifications ─────────────────────────────────────────────────────────
 export const notificationApi = {
   getLogs:   () => client.get('/api/notifications/logs'),
   getFailed: () => client.get('/api/notifications/logs/failed'),

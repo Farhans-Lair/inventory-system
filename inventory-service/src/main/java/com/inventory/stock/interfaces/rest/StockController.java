@@ -41,7 +41,6 @@ public class StockController {
         return ResponseEntity.ok(stockService.getOutOfStock());
     }
 
-    // ── B2: Overstock alerts endpoint ─────────────────────────────────────
     @GetMapping("/levels/overstock")
     public ResponseEntity<List<StockLevelDto>> overstock() {
         return ResponseEntity.ok(stockService.getOverstock());
@@ -55,7 +54,6 @@ public class StockController {
                 (int) body.get("minQuantity"), (int) body.get("maxQuantity")));
     }
 
-    // ── B5: Movement with reason codes ────────────────────────────────────
     @PostMapping("/movement")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<StockMovementResponse> movement(
@@ -75,7 +73,6 @@ public class StockController {
         return ResponseEntity.ok(stockService.getMovementsByProduct(productId));
     }
 
-    // ── B1: Reservations ─────────────────────────────────────────────────
     @PostMapping("/reservations")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<StockReservationDto> reserve(@RequestBody StockReservationDto dto) {
@@ -104,13 +101,11 @@ public class StockController {
         return ResponseEntity.ok(stockService.getReservationsByProduct(productId));
     }
 
-    // ── B6: Demand forecast ───────────────────────────────────────────────
     @GetMapping("/forecast/{productId}")
     public ResponseEntity<Map<String, Object>> forecast(@PathVariable String productId) {
         return ResponseEntity.ok(stockService.getDemandForecast(productId));
     }
 
-    // ── B4: UoM conversions ───────────────────────────────────────────────
     @GetMapping("/uom")
     public ResponseEntity<List<UomConversionDto>> allConversions() {
         return ResponseEntity.ok(uomService.getAll());

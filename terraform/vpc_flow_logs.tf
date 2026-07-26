@@ -1,20 +1,7 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# vpc_flow_logs.tf — capture all VPC network traffic metadata to S3
-#
-# Flow logs record: source IP, dest IP, ports, protocol, bytes, action
-# (ACCEPT/REJECT) for every network connection through the VPC. They don't
-# capture payload — just the connection metadata — so storage is small.
-#
-# Cost: ~$0.025/GB stored. At this project's traffic level expect < 2GB/month
-# = ~$0.05/month. Far cheaper than CloudWatch Logs ingestion ($0.50/GB).
-#
-# Retention: 90 days — long enough to investigate any security incident.
-# Increase to 365 for compliance requirements.
-# ═══════════════════════════════════════════════════════════════════════════
 
 resource "aws_s3_bucket" "flow_logs" {
   bucket        = "${local.prefix}-vpc-flow-logs"
-  force_destroy = true   # allows destroy even with logs present
+  force_destroy = true
   tags          = { Name = "${local.prefix}-vpc-flow-logs" }
 }
 
@@ -37,7 +24,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "flow_logs" {
   }
 }
 
-# IAM: allow VPC flow logs service to write to the bucket
 resource "aws_s3_bucket_policy" "flow_logs" {
   bucket = aws_s3_bucket.flow_logs.id
   policy = jsonencode({
@@ -70,15 +56,12 @@ resource "aws_s3_bucket_policy" "flow_logs" {
   })
 }
 
-# Capture all traffic (ACCEPT + REJECT) for the entire VPC
 resource "aws_flow_log" "vpc" {
   vpc_id               = aws_vpc.main.id
   traffic_type         = "ALL"
   log_destination      = aws_s3_bucket.flow_logs.arn
   log_destination_type = "s3"
 
-  # Parquet format: compressed columnar storage, ~80% smaller than plain text.
-  # Queryable directly with Athena if you need to investigate traffic patterns.
   destination_options {
     file_format        = "parquet"
     per_hour_partition = true
@@ -86,7 +69,3 @@ resource "aws_flow_log" "vpc" {
 
   tags = { Name = "${local.prefix}-vpc-flow-log" }
 }
-
-# No IAM role needed for S3 delivery — AWS automatically uses a
-# service-linked role when log_destination_type = "s3".
-# An IAM role is only required when delivering to CloudWatch Logs.

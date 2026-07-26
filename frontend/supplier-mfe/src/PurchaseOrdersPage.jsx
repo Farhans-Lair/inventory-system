@@ -28,10 +28,6 @@ export default function PurchaseOrdersPage() {
   const addLine = () => setForm({...form, lines:[...form.lines,{productSku:'',productName:'',productId:'',orderedQuantity:1,unitPrice:''}]})
   const updateLine = (i,k,v) => { const l=[...form.lines]; l[i]={...l[i],[k]:v}; setForm({...form,lines:l}) }
 
-  // ── Receive Goods (GRN) ───────────────────────────────────────────────
-  // Each GRN entry posts a single line's received quantity and records it
-  // against inventory-service as real stock, instead of the old "Received"
-  // button which only flipped a status flag with no effect on actual stock.
   const openGrn = po => {
     setGrnPo(po)
     const firstOpenLine = po.lines?.find(l => l.receivedQuantity < l.orderedQuantity)
@@ -51,7 +47,7 @@ export default function PurchaseOrdersPage() {
     setPos(refreshed.data)
     const updatedPo = refreshed.data.find(p => p.id === grnPo.id)
     if (updatedPo && updatedPo.status !== 'RECEIVED') {
-      openGrn(updatedPo)   // keep modal open, pre-fill the next open line, refresh GRN history
+      openGrn(updatedPo)
     } else {
       closeGrn()
     }

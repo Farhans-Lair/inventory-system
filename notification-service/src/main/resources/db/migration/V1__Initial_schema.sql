@@ -1,5 +1,3 @@
--- V1__Initial_schema.sql
--- notification-service initial schema.
 
 CREATE TABLE IF NOT EXISTS notification_logs (
     id            VARCHAR(36)   NOT NULL,

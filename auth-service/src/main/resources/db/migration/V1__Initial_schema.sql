@@ -1,9 +1,3 @@
--- V1__Initial_schema.sql
--- auth-service initial schema, reverse-engineered from JPA entities.
--- Flyway applies this once on a fresh database. On an existing database
--- (already created by Hibernate's ddl-auto=update), baseline-on-migrate=true
--- marks this version as already applied without running it, so the existing
--- schema is preserved. Future schema changes go in V2__*, V3__*, etc.
 
 CREATE TABLE IF NOT EXISTS users (
     id            VARCHAR(36)  NOT NULL,

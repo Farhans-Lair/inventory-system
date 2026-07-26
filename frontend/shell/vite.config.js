@@ -11,10 +11,7 @@ export default defineConfig(() => ({
       name: 'shell',
       dts: false,
       remotes: {
-        // Object format with type:'module' is required because @module-federation/vite
-        // outputs remoteEntry.js as an ES module (uses import statements).
-        // String format defaults to type:'var' (classic script), which throws
-        // "Cannot use import statement outside a module" in the browser.
+
         dashboardMfe: {
           type: 'module',
           name: 'dashboardMfe',

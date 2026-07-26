@@ -33,10 +33,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // Return 401 (not 403) for unauthenticated requests so the axios
-            // interceptor in the frontend correctly triggers token refresh.
-            // Without this, Spring Security returns 403 for any request with
-            // a missing/expired token, which bypasses the refresh cycle entirely.
+
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )

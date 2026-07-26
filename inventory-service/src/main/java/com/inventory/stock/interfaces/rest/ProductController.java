@@ -19,8 +19,6 @@ public class ProductController {
 
     private final ProductService productService;
 
-    // ── CRUD ──────────────────────────────────────────────────────────────
-
     @GetMapping
     public ResponseEntity<List<ProductDto>> getAll() {
         return ResponseEntity.ok(productService.getAll());
@@ -57,8 +55,6 @@ public class ProductController {
         return ResponseEntity.ok().build();
     }
 
-    // ── A1: Image upload ──────────────────────────────────────────────────
-
     @PostMapping("/{id}/image")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
     public ResponseEntity<ProductDto> uploadImage(
@@ -67,16 +63,12 @@ public class ProductController {
         return ResponseEntity.ok(productService.uploadImage(id, file));
     }
 
-    // ── A2: Barcode / QR generation ───────────────────────────────────────
-
     @GetMapping("/{id}/barcode")
     public ResponseEntity<BarcodeResponse> barcode(
             @PathVariable String id,
             @RequestParam(defaultValue = "CODE128") String type) {
         return ResponseEntity.ok(productService.generateBarcode(id, type));
     }
-
-    // ── A3: CSV import / export ───────────────────────────────────────────
 
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('ADMIN','WAREHOUSE_MANAGER')")
@@ -92,8 +84,6 @@ public class ProductController {
         headers.setContentDispositionFormData("attachment", "products.csv");
         return ResponseEntity.ok().headers(headers).body(csv);
     }
-
-    // ── A5: Variants ──────────────────────────────────────────────────────
 
     @GetMapping("/{id}/variants")
     public ResponseEntity<List<ProductVariantDto>> getVariants(@PathVariable String id) {

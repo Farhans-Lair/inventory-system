@@ -9,6 +9,6 @@ public class UomConversionDto {
     private String toUnit;
     private double factor;
     private String description;
-    // Convenience: result of a conversion
+
     private Double convertedQuantity;
 }

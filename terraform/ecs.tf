@@ -1,13 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# ecs.tf — ECS cluster, task definitions, and services on EC2
-#
-# Changed from Fargate to EC2 launch type backed by the ASG in asg.tf.
-# Network mode stays awsvpc so target groups use IP targets (same as Fargate).
-# ═══════════════════════════════════════════════════════════════════════════
 
 data "aws_caller_identity" "ecs" {}
 
-# ── ECS Cluster ────────────────────────────────────────────────────────────
 resource "aws_ecs_cluster" "main" {
   name = "${local.prefix}-cluster"
   setting {
@@ -16,7 +9,6 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
-# Link the EC2 capacity provider to the cluster
 resource "aws_ecs_cluster_capacity_providers" "main" {
   cluster_name       = aws_ecs_cluster.main.name
   capacity_providers = [aws_ecs_capacity_provider.ec2.name]
@@ -28,7 +20,6 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   }
 }
 
-# ── CloudWatch Log Groups ──────────────────────────────────────────────────
 resource "aws_cloudwatch_log_group" "services" {
   for_each          = local.services
   name              = "/ecs/${local.prefix}/${each.key}"
@@ -40,9 +31,6 @@ locals {
   ecr_base   = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${local.prefix}"
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# auth-service
-# ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "auth" {
   family                   = "${local.prefix}-auth"
   requires_compatibilities = ["EC2"]
@@ -60,11 +48,7 @@ resource "aws_ecs_task_definition" "auth" {
     environment = [
       { name = "DB_USER",       value = var.db_username },
       { name = "AUTH_DB_NAME",  value = "authdb" },
-      # true only when var.domain_name is set and the ACM cert/HTTPS listener
-      # (acm.tf, alb.tf) are actually provisioned — flipping this to "true"
-      # without HTTPS in front of it is what caused the earlier logout-loop
-      # (Spring Security returns a Secure cookie the browser refuses to store
-      # over plain HTTP, which surfaced as swallowed 403s instead of 401s).
+
       { name = "COOKIE_SECURE", value = var.domain_name != "" ? "true" : "false" },
       { name = "MAIL_HOST",     value = "smtp.gmail.com" },
       { name = "MAIL_PORT",     value = "587" },
@@ -72,14 +56,10 @@ resource "aws_ecs_task_definition" "auth" {
       { name = "spring.datasource.url",
         value = "jdbc:mysql://${aws_db_instance.shared.address}:3306/authdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
-    # Sensitive values pulled from Secrets Manager at task launch — never
-    # appear in plaintext in the task definition, ECS console, or CloudTrail.
+
     secrets = [
       { name = "DB_PASS",           valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
-      # Three separate keys — a leaked/rotated session or refresh secret no
-      # longer implies the access-token secret is also compromised, and
-      # vice versa. Only auth-service ever sees all three; other services
-      # only get JWT_ACCESS_SECRET (they only validate access tokens).
+
       { name = "JWT_SESSION_SECRET", valueFrom = "${aws_ssm_parameter.jwt_session_secret.arn}" },
       { name = "JWT_ACCESS_SECRET",  valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
       { name = "JWT_REFRESH_SECRET", valueFrom = "${aws_ssm_parameter.jwt_refresh_secret.arn}" },
@@ -100,15 +80,7 @@ resource "aws_ecs_service" "auth" {
   name                              = "${local.prefix}-auth"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.auth.arn
-  # Runs 2 tasks instead of 1 — auth-service is on the critical path for
-  # every page load (token validation). With desired_count=1, every
-  # deployment had a window where the old task was stopping/stopped and the
-  # new one hadn't passed its health check yet, causing a real availability
-  # gap (this is what produced the logout-loop and 502s seen during earlier
-  # deployments). minimum_healthy_percent=50 / maximum_percent=100 means ECS
-  # replaces one task at a time without exceeding desired_count — the other
-  # task keeps serving traffic throughout, so there's no extra ENI headroom
-  # needed beyond the 2 already provisioned for this service.
+
   desired_count                     = 2
   health_check_grace_period_seconds = 180
 
@@ -134,9 +106,6 @@ resource "aws_ecs_service" "auth" {
   depends_on = [aws_lb_listener_rule.auth]
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# inventory-service
-# ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "inventory" {
   family                   = "${local.prefix}-inventory"
   requires_compatibilities = ["EC2"]
@@ -157,8 +126,7 @@ resource "aws_ecs_task_definition" "inventory" {
       { name = "AWS_REGION",        value = var.aws_region },
       { name = "MINIO_BUCKET",      value = aws_s3_bucket.images.id },
       { name = "REPORTS_BUCKET",    value = aws_s3_bucket.reports.id },
-      # Notification service URL — must go through the ALB on ECS (no Docker Compose DNS on AWS).
-      # StockService uses this to send low-stock and overstock alerts.
+
       { name = "NOTIFICATION_SERVICE_URL",
         value = "http://${aws_lb.main.dns_name}" },
       { name = "spring.datasource.url",
@@ -183,9 +151,7 @@ resource "aws_ecs_service" "inventory" {
   name                              = "${local.prefix}-inventory"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.inventory.arn
-  # Same rationale as auth-service above — inventory-service backs the
-  # dashboard and every stock/product page, so it gets the same 2-task
-  # zero-downtime treatment.
+
   desired_count                     = 2
   health_check_grace_period_seconds = 180
 
@@ -211,9 +177,6 @@ resource "aws_ecs_service" "inventory" {
   depends_on = [aws_lb_listener_rule.inventory]
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# notification-service
-# ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "notification" {
   family                   = "${local.prefix}-notification"
   requires_compatibilities = ["EC2"]
@@ -240,10 +203,7 @@ resource "aws_ecs_task_definition" "notification" {
     ]
     secrets = [
       { name = "DB_PASS",           valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
-      # NOTE: notification-service has no JwtConfig/SecurityConfig — this
-      # was already unused before the JWT_SECRET split (dangling config,
-      # not something this change introduces). Kept for parity in case
-      # auth gets added later; safe to remove if confirmed dead.
+
       { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
       { name = "MAIL_PASSWORD",     valueFrom = "${aws_ssm_parameter.mail_password.arn}" },
     ]
@@ -262,9 +222,7 @@ resource "aws_ecs_service" "notification" {
   name                              = "${local.prefix}-notification"
   cluster                           = aws_ecs_cluster.main.id
   task_definition                   = aws_ecs_task_definition.notification.arn
-  # Was desired_count=1 with no alarm coverage — a crash or bad deploy was a
-  # silent outage. Now 2 tasks with the same rolling-replacement guarantee
-  # as auth/inventory: one task always stays up during a deployment.
+
   desired_count                     = 2
   health_check_grace_period_seconds = 180
 
@@ -290,9 +248,6 @@ resource "aws_ecs_service" "notification" {
   depends_on = [aws_lb_listener_rule.notification]
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# reporting-service
-# ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "reporting" {
   family                   = "${local.prefix}-reporting"
   requires_compatibilities = ["EC2"]
@@ -312,18 +267,13 @@ resource "aws_ecs_task_definition" "reporting" {
       { name = "INVENTORY_DB_NAME", value = "inventorydb" },
       { name = "AWS_REGION",        value = var.aws_region },
       { name = "REPORTS_BUCKET",    value = aws_s3_bucket.reports.id },
-      # Points at the read replica, not the primary — reporting-service only
-      # ever reads from inventorydb (report/valuation generation), so this
-      # takes that load off the primary instance that inventory-service
-      # writes to. If reporting-service ever needs to write, add a second
-      # datasource pointing at aws_db_instance.shared for writes.
+
       { name = "spring.datasource.url",
         value = "jdbc:mysql://${aws_db_instance.reporting_replica.address}:3306/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" },
     ]
     secrets = [
       { name = "DB_PASS",           valueFrom = "${aws_ssm_parameter.db_pass.arn}" },
-      # NOTE: same as notification-service — no JwtConfig/SecurityConfig
-      # here yet, this is dangling config kept for parity.
+
       { name = "JWT_ACCESS_SECRET", valueFrom = "${aws_ssm_parameter.jwt_access_secret.arn}" },
     ]
     logConfiguration = {
@@ -366,9 +316,6 @@ resource "aws_ecs_service" "reporting" {
   depends_on = [aws_lb_listener_rule.reporting]
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# supplier-service
-# ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "supplier" {
   family                   = "${local.prefix}-supplier"
   requires_compatibilities = ["EC2"]
@@ -386,9 +333,7 @@ resource "aws_ecs_task_definition" "supplier" {
     environment = [
       { name = "DB_USER",          value = var.db_username },
       { name = "SUPPLIER_DB_NAME", value = "supplierdb" },
-      # Used by receiveGoods() to push an INBOUND stock movement into
-      # inventory-service when a GRN is recorded — must go through the ALB
-      # since there is no service-discovery DNS on ECS.
+
       { name = "INVENTORY_SERVICE_URL",
         value = "http://${aws_lb.main.dns_name}" },
       { name = "spring.datasource.url",
@@ -438,9 +383,6 @@ resource "aws_ecs_service" "supplier" {
   depends_on = [aws_lb_listener_rule.supplier]
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# frontend
-# ═══════════════════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "frontend" {
   family                   = "${local.prefix}-frontend"
   requires_compatibilities = ["EC2"]

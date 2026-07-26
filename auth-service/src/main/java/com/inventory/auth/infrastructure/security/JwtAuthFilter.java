@@ -20,16 +20,8 @@ import java.util.List;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    // Auth requests carry access tokens only — session/refresh tokens never
-    // reach this filter (session tokens go in the OTP verify request body,
-    // refresh tokens go in the HttpOnly cookie read directly by AuthController).
     private final JwtUtil jwtUtil;
 
-    // Manual constructor required — @Qualifier on a @RequiredArgsConstructor
-    // field is NOT carried to the generated constructor parameter by Lombok,
-    // so Spring cannot resolve which of the three JwtUtil beans to inject.
-    // Writing the constructor explicitly puts @Qualifier on the parameter
-    // where Spring actually looks for it during constructor injection.
     public JwtAuthFilter(@Qualifier("accessJwtUtil") JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
     }
@@ -55,18 +47,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         chain.doFilter(req, res);
     }
 
-    /**
-     * Token extraction priority:
-     * 1. Authorization: Bearer header — used by tab-isolated sessionStorage tokens
-     * 2. access_token cookie — backward-compatibility fallback (e.g. local dev with docker-compose)
-     */
     private String extractToken(HttpServletRequest req) {
-        // 1. Authorization header first (tab-isolated access token from sessionStorage)
+
         String header = req.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             return header.substring(7);
         }
-        // 2. Cookie fallback (backward-compatible with local docker-compose setup)
+
         if (req.getCookies() != null) {
             for (Cookie c : req.getCookies()) {
                 if ("access_token".equals(c.getName())) {

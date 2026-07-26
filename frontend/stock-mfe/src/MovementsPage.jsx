@@ -21,7 +21,6 @@ export default function MovementsPage() {
       <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Stock Movements</h1>
       <p style={{ color: '#6b7280', marginBottom: 16, fontSize: 13 }}>Last 20 movements across all products</p>
 
-      {/* Filter tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {['ALL','INBOUND','OUTBOUND','TRANSFER'].map(t => (
           <button key={t} onClick={() => setFilter(t)} style={{

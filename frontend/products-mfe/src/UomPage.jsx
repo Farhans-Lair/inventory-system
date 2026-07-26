@@ -40,7 +40,6 @@ export default function UomPage() {
       <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>Define how many units of one measure equal another</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 0 }}>
-        {/* Add conversion */}
         <div style={card}>
           <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Add conversion rule</h2>
           {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 12px', color: '#991b1b', fontSize: 12, marginBottom: 12 }}>{error}</div>}
@@ -67,7 +66,6 @@ export default function UomPage() {
           </form>
         </div>
 
-        {/* Quick converter */}
         <div style={card}>
           <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Quick converter</h2>
           <form onSubmit={doConvert} style={{ display: 'grid', gap: 10 }}>
@@ -98,7 +96,6 @@ export default function UomPage() {
         </div>
       </div>
 
-      {/* Conversions table */}
       <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600, fontSize: 14 }}>All conversion rules ({conversions.length})</div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

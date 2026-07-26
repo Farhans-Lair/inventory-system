@@ -1,10 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# iam.tf — IAM roles for ECS tasks and EC2 instances
-# ═══════════════════════════════════════════════════════════════════════════
 
 data "aws_caller_identity" "current" {}
 
-# ── ECS Task Execution Role (pull ECR images + write CloudWatch logs) ──────
 resource "aws_iam_role" "ecs_execution" {
   name = "${local.prefix}-ecs-execution-role"
   assume_role_policy = jsonencode({
@@ -22,10 +18,6 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Lets the execution role resolve `secrets: valueFrom` entries in task
-# definitions at launch time — without this, ECS cannot pull DB_PASS,
-# JWT_SESSION_SECRET/JWT_ACCESS_SECRET/JWT_REFRESH_SECRET, or MAIL_PASSWORD
-# from SSM Parameter Store and tasks fail to start.
 resource "aws_iam_role_policy" "ecs_execution_secrets" {
   name = "${local.prefix}-ecs-execution-secrets"
   role = aws_iam_role.ecs_execution.id
@@ -35,9 +27,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
       {
         Sid      = "SSMParameterRead"
         Effect   = "Allow"
-        # GetParameters (plural) is what ECS actually calls at task launch
-        # when resolving `secrets: valueFrom` — GetParameter (singular)
-        # alone is not sufficient and tasks will fail to start with it missing.
+
         Action   = ["ssm:GetParameters"]
         Resource = [
           aws_ssm_parameter.db_pass.arn,
@@ -48,10 +38,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
         ]
       },
       {
-        # SecureString parameters are encrypted with the default AWS-managed
-        # "alias/aws/ssm" key (no key_id set in secrets.tf) — the execution
-        # role needs kms:Decrypt on it or GetParameters succeeds but returns
-        # ciphertext the container can't use.
+
         Sid      = "SSMDefaultKeyDecrypt"
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
@@ -65,7 +52,6 @@ data "aws_kms_key" "ssm_default" {
   key_id = "alias/aws/ssm"
 }
 
-# ── ECS Task Role (runtime permissions: S3 only) ──────────────────────────
 resource "aws_iam_role" "ecs_task" {
   name = "${local.prefix}-ecs-task-role"
   assume_role_policy = jsonencode({
@@ -77,15 +63,6 @@ resource "aws_iam_role" "ecs_task" {
     }]
   })
 }
-
-# NOTE: there is no CloudWatch Logs policy on the task role. Container log
-# shipping via the `awslogs` log driver (configured per-service in ecs.tf)
-# is handled by the ECS agent using the EXECUTION role's
-# AmazonECSTaskExecutionRolePolicy (attached above) — the task role is only
-# for permissions the *application code* needs at runtime via the AWS SDK.
-# Nothing in this codebase calls CloudWatch Logs APIs directly, so the
-# previous CloudWatchLogsFullAccess attachment here was both over-permissioned
-# (account-wide access to every log group) and unused.
 
 resource "aws_iam_role_policy" "ecs_task_s3" {
   name = "${local.prefix}-ecs-s3-images"
@@ -103,10 +80,6 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
   })
 }
 
-# Grants inventory-service and reporting-service (both run under this shared
-# task role) write/read access to archive generated CSV reports. No delete
-# permission here on purpose — reports are compliance records and the
-# application has no business deleting them; only Put/Get/List are needed.
 resource "aws_iam_role_policy" "ecs_task_s3_reports" {
   name = "${local.prefix}-ecs-s3-reports"
   role = aws_iam_role.ecs_task.id
@@ -122,9 +95,6 @@ resource "aws_iam_role_policy" "ecs_task_s3_reports" {
     }]
   })
 }
-
-# ── GitHub Actions OIDC (moved here from oidc.tf — same resources, same
-# addresses, file location has no effect on Terraform state or behavior) ──
 
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"

@@ -24,7 +24,7 @@ public class Product {
     private String category;
 
     @Column(nullable = false)
-    private String unit;   // pcs, kg, liters, boxes…
+    private String unit;
 
     private String imageUrl;
 

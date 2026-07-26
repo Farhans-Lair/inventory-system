@@ -6,12 +6,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Registers the shared-lib JwtUtil as a Spring bean. supplier-service only
- * ever validates access tokens issued by auth-service — same rationale as
- * inventory-service's JwtConfig. jwt.access-secret must match auth-service's
- * JWT_ACCESS_SECRET exactly.
- */
 @Configuration
 public class JwtConfig {
 

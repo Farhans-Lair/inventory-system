@@ -46,7 +46,6 @@ export default function LoginPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', fontFamily: 'var(--font-body)' }}>
 
-      {/* ── Left: identity panel — manifest board concept ────────────── */}
       <div style={{
         flex: '0 0 44%', background: 'var(--deep)', color: '#fff',
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
@@ -100,7 +99,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── Right: auth form ────────────────────────────────────────── */}
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'var(--bg)', padding: 24,

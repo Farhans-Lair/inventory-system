@@ -25,7 +25,7 @@ public class StockReservation {
     private int quantity;
 
     @Column(nullable = false)
-    private String referenceId;   // order ID or reason
+    private String referenceId;
 
     private String notes;
 

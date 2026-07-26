@@ -30,10 +30,6 @@ public class AuthService {
     private final JwtUtil                accessJwtUtil;
     private final JwtUtil                refreshJwtUtil;
 
-    // Manual constructor required — @Qualifier on @RequiredArgsConstructor
-    // fields is NOT transferred to Lombok-generated constructor parameters,
-    // causing Spring to fail with "expected single matching bean but found 3"
-    // when there are multiple JwtUtil beans in the context.
     public AuthService(UserRepository userRepository,
                        OtpTokenRepository otpTokenRepository,
                        RefreshTokenRepository refreshTokenRepository,
@@ -131,19 +127,6 @@ public class AuthService {
         refreshTokenRepository.deleteByUserId(user.getId());
     }
 
-    /**
-     * Accepts the refresh JWT read from the HttpOnly cookie. Verifies its
-     * signature/expiry/type first (stateless — refreshJwtUtil), then looks
-     * up its jti to check revocation state.
-     *
-     * Reuse detection: a refresh token is rotated (marked revoked, replaced
-     * by a new one) on every successful use. If a *revoked* jti is ever
-     * presented again, that's not a normal error — it means either the
-     * client retried a stale token, or an attacker replayed a refresh token
-     * that was already used once. Since we can't tell those apart, we treat
-     * it as a compromise signal and revoke every refresh token for that
-     * user, forcing a full re-login everywhere.
-     */
     @Transactional
     public TokenPairResponse refreshAccessToken(String rawRefreshToken) {
         Claims claims;
@@ -160,7 +143,7 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Invalid refresh token."));
 
         if (rt.isRevoked()) {
-            // Reuse of an already-rotated-out token — assume compromise.
+
             refreshTokenRepository.deleteByUserId(userId);
             throw new RuntimeException(
                     "Refresh token reuse detected — all sessions have been revoked. Please log in again.");
@@ -192,19 +175,10 @@ public class AuthService {
         return toResponse(userRepository.save(user));
     }
 
-    /**
-     * Bootstrap probe: returns true if at least one ADMIN account already exists.
-     * Called by the public /api/auth/admin-exists endpoint so the signup page can
-     * decide whether to show the Administrator role option.
-     */
     public boolean adminExists() {
         return userRepository.countByRole(Role.ADMIN) > 0;
     }
 
-    /**
-     * Caps the number of ADMIN accounts in the system at MAX_ADMIN_COUNT.
-     * Used on the admin-only createUser path only.
-     */
     private void enforceAdminLimit(Role role) {
         if (role == Role.ADMIN && userRepository.countByRole(Role.ADMIN) >= MAX_ADMIN_COUNT) {
             throw new RuntimeException(
@@ -212,13 +186,6 @@ public class AuthService {
         }
     }
 
-    /**
-     * Security rule for the *public* /api/auth/signup endpoint:
-     * self-registration as ADMIN is only allowed when zero admins exist (bootstrap).
-     * Once any admin exists, further admin accounts must be created by an existing
-     * admin via POST /api/users, which is gated by @PreAuthorize("hasRole('ADMIN')")
-     * and subject to enforceAdminLimit above.
-     */
     private void enforcePublicSignupAdminRule(Role role) {
         if (role == Role.ADMIN && userRepository.countByRole(Role.ADMIN) > 0) {
             throw new RuntimeException(
@@ -244,11 +211,7 @@ public class AuthService {
                 .email(email).code(code).purpose(purpose)
                 .expiresAt(LocalDateTime.now().plusMinutes(10)).used(false).build());
         emailService.sendOtp(email, code, purposeLabel);
-        // Session token proves the client actually went through this
-        // request-OTP step for this exact email+purpose before they're
-        // allowed to call verify-otp / reset-password. Subject = email
-        // (there's no user id yet during signup), 10-minute expiry matches
-        // the OTP's own expiry above.
+
         String sessionToken = sessionJwtUtil.generateToken(email, Map.of(PURPOSE_CLAIM, purpose.name()));
         return OtpRequestResponse.builder()
                 .email(email)
@@ -258,8 +221,6 @@ public class AuthService {
                 .build();
     }
 
-    /** Validates the session token's signature/expiry/type, and that its
-     *  email + purpose match what the caller is trying to do. */
     private void validateSessionToken(String sessionToken, String expectedEmail, OtpPurpose expectedPurpose) {
         Claims claims;
         try {
@@ -285,8 +246,6 @@ public class AuthService {
     public TokenPairResponse buildTokenPair(User user) {
         String access = accessJwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
 
-        // jti is what we track in the DB for revocation/rotation/reuse
-        // detection; the refresh JWT itself is what the client holds.
         String jti     = UUID.randomUUID().toString();
         String refresh = refreshJwtUtil.generateToken(user.getId(), Map.of(JTI_CLAIM, jti));
         refreshTokenRepository.save(RefreshToken.builder()

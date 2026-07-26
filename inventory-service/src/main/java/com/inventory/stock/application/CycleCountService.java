@@ -19,7 +19,6 @@ public class CycleCountService {
     private final LocationRepository    locationRepository;
     private final StockLevelRepository  stockLevelRepository;
 
-    /** Start a new count — captures current system qty */
     public CycleCountDto initiate(String productId, String locationId, String countedBy) {
         Product p  = productRepository.findById(productId).orElseThrow();
         Location l = locationRepository.findById(locationId).orElseThrow();
@@ -32,7 +31,6 @@ public class CycleCountService {
         return toDto(cycleCountRepository.save(cc));
     }
 
-    /** Submit the physical count result */
     @Transactional
     public CycleCountDto submitCount(String id, int countedQty, String notes) {
         CycleCount cc = cycleCountRepository.findById(id)
@@ -46,7 +44,6 @@ public class CycleCountService {
         return toDto(cycleCountRepository.save(cc));
     }
 
-    /** Reconcile — adjust stock level to match physical count */
     @Transactional
     public CycleCountDto reconcile(String id) {
         CycleCount cc = cycleCountRepository.findById(id)

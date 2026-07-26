@@ -50,7 +50,6 @@ export default function Layout({ children }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
 
-      {/* ── Sidebar — industrial deep-green, stamped active state ──────── */}
       <nav style={{
         width: 232, background: 'var(--deep)', color: '#fff',
         display: 'flex', flexDirection: 'column', flexShrink: 0,
@@ -134,10 +133,8 @@ export default function Layout({ children }) {
         </div>
       </nav>
 
-      {/* ── Main column ──────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
-        {/* Manifest strip — signature element, like warehouse digital signage */}
         <div style={{
           background: 'var(--ink)', color: '#fff', padding: '7px 28px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',

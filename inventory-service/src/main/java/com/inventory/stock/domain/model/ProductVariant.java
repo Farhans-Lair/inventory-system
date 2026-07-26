@@ -6,10 +6,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * Represents a variant of a Product — e.g. "Red / XL" or "500ml".
- * Each variant has its own SKU and optional price override.
- */
 @Entity
 @Table(name = "product_variants",
        uniqueConstraints = @UniqueConstraint(columnNames = "sku"))
@@ -24,12 +20,11 @@ public class ProductVariant {
     private Product product;
 
     @Column(nullable = false, unique = true)
-    private String sku;          // e.g. TSHIRT-RED-XL
+    private String sku;
 
     @Column(nullable = false)
-    private String name;         // e.g. "Red / XL"
+    private String name;
 
-    /** Pipe-separated attribute key=value pairs. e.g. "color=Red|size=XL" */
     @Column(length = 512)
     private String attributes;
 
@@ -47,7 +42,6 @@ public class ProductVariant {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    /** Parse attributes string into a readable map representation. */
     public java.util.Map<String,String> getAttributesMap() {
         java.util.Map<String,String> map = new java.util.LinkedHashMap<>();
         if (attributes == null || attributes.isBlank()) return map;

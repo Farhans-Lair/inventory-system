@@ -1,9 +1,4 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# alb.tf — Application Load Balancer with path-based routing
-# Mirrors exactly what nginx.conf does in the Docker setup
-# ═══════════════════════════════════════════════════════════════════════════
 
-# ── ALB ────────────────────────────────────────────────────────────────────
 resource "aws_lb" "main" {
   name               = "${local.prefix}-alb"
   internal           = false
@@ -13,7 +8,6 @@ resource "aws_lb" "main" {
   tags               = { Name = "${local.prefix}-alb" }
 }
 
-# ── Target groups (one per service) ───────────────────────────────────────
 resource "aws_lb_target_group" "frontend" {
   name        = "${local.prefix}-tg-frontend"
   port        = 80
@@ -108,21 +102,17 @@ resource "aws_lb_target_group" "supplier" {
   }
 }
 
-# ── HTTP listener with path-based rules ───────────────────────────────────
-# (Add HTTPS listener after ACM cert is issued — see outputs.tf)
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
 
-  # Default → frontend
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.frontend.arn
   }
 }
 
-# auth-service paths: /api/auth/* and /api/users*
 resource "aws_lb_listener_rule" "auth" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 10
@@ -135,7 +125,6 @@ resource "aws_lb_listener_rule" "auth" {
   }
 }
 
-# inventory-service paths
 resource "aws_lb_listener_rule" "inventory" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 20
@@ -156,7 +145,6 @@ resource "aws_lb_listener_rule" "inventory" {
   }
 }
 
-# notification-service paths
 resource "aws_lb_listener_rule" "notification" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 30
@@ -169,7 +157,6 @@ resource "aws_lb_listener_rule" "notification" {
   }
 }
 
-# reporting-service paths
 resource "aws_lb_listener_rule" "reporting" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 40
@@ -182,7 +169,6 @@ resource "aws_lb_listener_rule" "reporting" {
   }
 }
 
-# supplier-service paths
 resource "aws_lb_listener_rule" "supplier" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 50
@@ -195,13 +181,6 @@ resource "aws_lb_listener_rule" "supplier" {
   }
 }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# HTTPS listener — only created when var.domain_name is set (see acm.tf).
-# Mirrors the HTTP listener's path-based rules exactly. Port 80 is left as
-# forward-to-frontend rather than redirect-to-443, so existing HTTP clients
-# keep working during migration; add a redirect action once you've confirmed
-# everything works over HTTPS.
-# ═══════════════════════════════════════════════════════════════════════════
 resource "aws_lb_listener" "https" {
   count             = var.domain_name != "" ? 1 : 0
   load_balancer_arn = aws_lb.main.arn

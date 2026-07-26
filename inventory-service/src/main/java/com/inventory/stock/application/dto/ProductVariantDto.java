@@ -12,8 +12,8 @@ public class ProductVariantDto {
     private String      productName;
     private String      sku;
     private String      name;
-    private String      attributes;              // raw "color=Red|size=XL"
-    private Map<String,String> attributesMap;    // parsed map
+    private String      attributes;
+    private Map<String,String> attributesMap;
     private BigDecimal  costPriceOverride;
     private BigDecimal  sellingPriceOverride;
     private String      imageUrl;

@@ -1,5 +1,3 @@
--- V1__Initial_schema.sql
--- inventory-service initial schema, reverse-engineered from JPA entities.
 
 CREATE TABLE IF NOT EXISTS products (
     id                   VARCHAR(36)    NOT NULL,

@@ -32,17 +32,6 @@ public class AuthController {
     @Value("${cookie.secure:false}")
     private boolean cookieSecure;
 
-    /**
-     * Unauthenticated bootstrap probe — used by the signup page to decide whether
-     * to show the Administrator role option. Returns {"adminExists": true/false}.
-     *
-     * This endpoint is intentionally public (no auth required) because:
-     * - It reveals only a boolean, not any user data
-     * - The signup page needs it before any session exists
-     * - The server-side enforcePublicSignupAdminRule() is the real security gate —
-     *   even if someone calls this API directly and lies about the result, the
-     *   backend will still reject an admin signup when one already exists
-     */
     @GetMapping("/admin-exists")
     public ResponseEntity<java.util.Map<String, Boolean>> adminExists() {
         return ResponseEntity.ok(java.util.Map.of("adminExists", authService.adminExists()));
@@ -85,11 +74,6 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * Refresh — reads refresh_token HttpOnly cookie (sent automatically because
-     * client uses withCredentials:true for this endpoint), rotates it, and
-     * returns a new access token in the response body.
-     */
     @PostMapping("/refresh")
     public ResponseEntity<TokenPairResponse> refresh(
             @CookieValue(name = "refresh_token", required = false) String refreshToken,
@@ -106,11 +90,6 @@ public class AuthController {
         }
     }
 
-    /**
-     * Logout — revokes refresh token in DB and clears the refresh_token cookie.
-     * Access token expires naturally (max 1 hour) — no server-side revocation needed
-     * since it is tab-scoped in sessionStorage and already cleared by the client.
-     */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
             @CookieValue(name = "refresh_token", required = false) String refreshToken,
@@ -129,8 +108,6 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
-    // ── Cookie helpers ────────────────────────────────────────────────────
-
     private void setRefreshCookie(HttpServletResponse res, String token) {
         ResponseCookie c = ResponseCookie.from("refresh_token", token)
                 .httpOnly(true).secure(cookieSecure).sameSite("Strict")
@@ -145,10 +122,6 @@ public class AuthController {
         res.addHeader(HttpHeaders.SET_COOKIE, c.toString());
     }
 
-    /**
-     * Include accessToken in body (client stores in sessionStorage per tab).
-     * Never include refreshToken in body — it lives only in the HttpOnly cookie.
-     */
     private TokenPairResponse sanitize(TokenPairResponse pair) {
         return TokenPairResponse.builder()
                 .accessToken(pair.getAccessToken())

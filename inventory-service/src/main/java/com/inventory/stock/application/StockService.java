@@ -29,25 +29,9 @@ public class StockService {
     private final StockReservationRepository reservationRepository;
     private final BatchLotRepository         batchLotRepository;
 
-    /**
-     * URL of the notification service.
-     *
-     * On AWS ECS there is no Docker Compose DNS — services cannot reach each
-     * other by container name.  All inter-service traffic must go through the
-     * ALB, which routes /api/notifications* to the notification-service target
-     * group (priority 30 in alb.tf).
-     *
-     * Set NOTIFICATION_SERVICE_URL in the ECS task definition environment to
-     * the ALB DNS name, e.g.:
-     *   http://inventoryms-prod-alb-<id>.ap-south-1.elb.amazonaws.com
-     *
-     * Locally (docker-compose) this defaults to http://notification-service:8083
-     * which still works because Docker Compose provides that DNS name.
-     */
     @Value("${notification.service.url:http://notification-service:8083}")
     private String notificationServiceUrl;
 
-    // ── Dashboard summary ──────────────────────────────────────────────────
     @Cacheable("stockLevels")
     public StockSummaryDto getSummary() {
         return StockSummaryDto.builder()
@@ -62,7 +46,6 @@ public class StockService {
                 .build();
     }
 
-    // ── Stock level queries ────────────────────────────────────────────────
     @Cacheable("stockLevels")
     public List<StockLevelDto> getAllLevels()                 { return stockLevelRepository.findAll().stream().map(this::toLevelDto).collect(Collectors.toList()); }
     public List<StockLevelDto> getLevelsByProduct(String id) { return stockLevelRepository.findByProductId(id).stream().map(this::toLevelDto).collect(Collectors.toList()); }
@@ -80,7 +63,6 @@ public class StockService {
         return toLevelDto(stockLevelRepository.save(sl));
     }
 
-    // ── B1+B2+B5: Record movement with overstock alert + reason codes ──────
     @Transactional
     @CacheEvict(value = "stockLevels", allEntries = true)
     public StockMovementResponse recordMovement(StockMovementRequest req, String performedBy) {
@@ -100,7 +82,7 @@ public class StockService {
                 level.setQuantity(level.getQuantity() + req.getQuantity());
                 affectedLevel = stockLevelRepository.save(level);
                 builder.toLocation(to);
-                // B2: Overstock alert
+
                 if (affectedLevel.isOverstock()) {
                     publishOverstockAlert(product, to, affectedLevel);
                 }
@@ -116,7 +98,7 @@ public class StockService {
                 level.setQuantity(level.getQuantity() - req.getQuantity());
                 affectedLevel = stockLevelRepository.save(level);
                 builder.fromLocation(from);
-                // Low-stock alert
+
                 if (affectedLevel.isLowStock() || affectedLevel.isOutOfStock()) {
                     publishLowStockAlert(product, from, affectedLevel);
                 }
@@ -140,7 +122,6 @@ public class StockService {
         return toMovementDto(movementRepository.save(builder.build()));
     }
 
-    // ── B1: Stock reservations ─────────────────────────────────────────────
     @Transactional
     @CacheEvict(value = "stockLevels", allEntries = true)
     public StockReservationDto createReservation(StockReservationDto dto) {
@@ -183,7 +164,6 @@ public class StockService {
                 .stream().map(this::toReservationDto).collect(Collectors.toList());
     }
 
-    // ── B6: Enhanced demand forecasting ────────────────────────────────────
     public Map<String, Object> getDemandForecast(String productId) {
         List<StockMovement> outbound = movementRepository
                 .findByProductIdOrderByTimestampDesc(productId).stream()
@@ -242,7 +222,6 @@ public class StockService {
                 .stream().map(this::toMovementDto).collect(Collectors.toList());
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
     private StockLevel getOrCreateLevel(String productId, String locationId) {
         return stockLevelRepository.findByProductIdAndLocationId(productId, locationId)
                 .orElseGet(() -> {
@@ -258,7 +237,6 @@ public class StockService {
                 .orElseThrow(() -> new RuntimeException("Location not found: " + id));
     }
 
-    /** B2: Fire overstock alert to notification-service (fire-and-forget). */
     private void publishOverstockAlert(Product p, Location l, StockLevel sl) {
         try {
             RestTemplate rt = new RestTemplate();
@@ -274,7 +252,6 @@ public class StockService {
         } catch (Exception e) { log.warn("Overstock alert publish failed: {}", e.getMessage()); }
     }
 
-    /** Fire low-stock alert to notification-service (fire-and-forget). */
     private void publishLowStockAlert(Product p, Location l, StockLevel sl) {
         try {
             RestTemplate rt = new RestTemplate();

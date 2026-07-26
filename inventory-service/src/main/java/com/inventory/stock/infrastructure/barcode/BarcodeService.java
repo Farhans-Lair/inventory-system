@@ -14,7 +14,6 @@ import java.util.Map;
 @Service
 public class BarcodeService {
 
-    /** Generate a QR code PNG for the given content. */
     public byte[] generateQrCode(String content, int width, int height) {
         try {
             QRCodeWriter writer = new QRCodeWriter();
@@ -29,7 +28,6 @@ public class BarcodeService {
         }
     }
 
-    /** Generate a Code-128 barcode PNG for the given content. */
     public byte[] generateBarcode(String content, int width, int height) {
         try {
             Code128Writer writer = new Code128Writer();
