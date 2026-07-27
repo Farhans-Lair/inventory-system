@@ -189,20 +189,8 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          # Check if this exact image tag already exists in ECR (e.g. same commit
-          # re-deployed after a terraform apply with no code change). If it does,
-          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
-          # step below will still run and point ECS to this existing image.
-          IMAGE_TAG="${{ github.sha }}"
-          if aws ecr describe-images \
-            --repository-name "inventoryms-prod/auth-service" \
-            --image-ids imageTag="$IMAGE_TAG" \
-            --region $AWS_REGION > /dev/null 2>&1; then
-            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
-          else
-            docker build -t "${ECR_BASE}/auth-service:$IMAGE_TAG" ./auth-service
-            docker push "${ECR_BASE}/auth-service:$IMAGE_TAG"
-          fi
+          docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" ./auth-service
+          docker push "${ECR_BASE}/auth-service:${{ github.sha }}"
       - name: Force ECS redeploy
         run: |
           # Get the current task definition, swap the image to the new SHA tag,
@@ -221,7 +209,7 @@ jobs:
             --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
-               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt) |
                 .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
@@ -271,20 +259,8 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          # Check if this exact image tag already exists in ECR (e.g. same commit
-          # re-deployed after a terraform apply with no code change). If it does,
-          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
-          # step below will still run and point ECS to this existing image.
-          IMAGE_TAG="${{ github.sha }}"
-          if aws ecr describe-images \
-            --repository-name "inventoryms-prod/inventory-service" \
-            --image-ids imageTag="$IMAGE_TAG" \
-            --region $AWS_REGION > /dev/null 2>&1; then
-            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
-          else
-            docker build -t "${ECR_BASE}/inventory-service:$IMAGE_TAG" ./inventory-service
-            docker push "${ECR_BASE}/inventory-service:$IMAGE_TAG"
-          fi
+          docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" ./inventory-service
+          docker push "${ECR_BASE}/inventory-service:${{ github.sha }}"
       - name: Force ECS redeploy
         run: |
           # Get the current task definition, swap the image to the new SHA tag,
@@ -303,7 +279,7 @@ jobs:
             --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
-               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt) |
                 .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
@@ -353,20 +329,8 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          # Check if this exact image tag already exists in ECR (e.g. same commit
-          # re-deployed after a terraform apply with no code change). If it does,
-          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
-          # step below will still run and point ECS to this existing image.
-          IMAGE_TAG="${{ github.sha }}"
-          if aws ecr describe-images \
-            --repository-name "inventoryms-prod/notification-service" \
-            --image-ids imageTag="$IMAGE_TAG" \
-            --region $AWS_REGION > /dev/null 2>&1; then
-            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
-          else
-            docker build -t "${ECR_BASE}/notification-service:$IMAGE_TAG" ./notification-service
-            docker push "${ECR_BASE}/notification-service:$IMAGE_TAG"
-          fi
+          docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" ./notification-service
+          docker push "${ECR_BASE}/notification-service:${{ github.sha }}"
       - name: Force ECS redeploy
         run: |
           # Get the current task definition, swap the image to the new SHA tag,
@@ -385,7 +349,7 @@ jobs:
             --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
-               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt) |
                 .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
@@ -435,20 +399,8 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          # Check if this exact image tag already exists in ECR (e.g. same commit
-          # re-deployed after a terraform apply with no code change). If it does,
-          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
-          # step below will still run and point ECS to this existing image.
-          IMAGE_TAG="${{ github.sha }}"
-          if aws ecr describe-images \
-            --repository-name "inventoryms-prod/reporting-service" \
-            --image-ids imageTag="$IMAGE_TAG" \
-            --region $AWS_REGION > /dev/null 2>&1; then
-            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
-          else
-            docker build -t "${ECR_BASE}/reporting-service:$IMAGE_TAG" ./reporting-service
-            docker push "${ECR_BASE}/reporting-service:$IMAGE_TAG"
-          fi
+          docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" ./reporting-service
+          docker push "${ECR_BASE}/reporting-service:${{ github.sha }}"
       - name: Force ECS redeploy
         run: |
           # Get the current task definition, swap the image to the new SHA tag,
@@ -467,7 +419,7 @@ jobs:
             --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
-               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt) |
                 .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
@@ -517,20 +469,8 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          # Check if this exact image tag already exists in ECR (e.g. same commit
-          # re-deployed after a terraform apply with no code change). If it does,
-          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
-          # step below will still run and point ECS to this existing image.
-          IMAGE_TAG="${{ github.sha }}"
-          if aws ecr describe-images \
-            --repository-name "inventoryms-prod/supplier-service" \
-            --image-ids imageTag="$IMAGE_TAG" \
-            --region $AWS_REGION > /dev/null 2>&1; then
-            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
-          else
-            docker build -t "${ECR_BASE}/supplier-service:$IMAGE_TAG" ./supplier-service
-            docker push "${ECR_BASE}/supplier-service:$IMAGE_TAG"
-          fi
+          docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" ./supplier-service
+          docker push "${ECR_BASE}/supplier-service:${{ github.sha }}"
       - name: Force ECS redeploy
         run: |
           # Get the current task definition, swap the image to the new SHA tag,
@@ -549,7 +489,7 @@ jobs:
             --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
-               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt) |
                 .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
@@ -641,16 +581,8 @@ jobs:
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
-          IMAGE_TAG="${{ github.sha }}"
-          if aws ecr describe-images \
-            --repository-name "inventoryms-prod/frontend" \
-            --image-ids imageTag="$IMAGE_TAG" \
-            --region $AWS_REGION > /dev/null 2>&1; then
-            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
-          else
-            docker build -t "${ECR_BASE}/frontend:$IMAGE_TAG" .
-            docker push "${ECR_BASE}/frontend:$IMAGE_TAG"
-          fi
+          docker build -t "${ECR_BASE}/frontend:${{ github.sha }}" .
+          docker push "${ECR_BASE}/frontend:${{ github.sha }}"
 
       - name: Force ECS redeploy
         run: |
@@ -670,7 +602,7 @@ jobs:
             --task-definition "$TASK_DEF_ARN" --region $AWS_REGION \
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
-               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
+               'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy,.deregisteredAt) |
                 .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
