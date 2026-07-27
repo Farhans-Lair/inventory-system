@@ -1,4 +1,5 @@
 ﻿name: InventoryMS Deploy
+# cache-bust
 
 on:
   push:
@@ -40,6 +41,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ── Bootstrap guard ─────────────────────────────────────────────────
+      # Checks that ECR repositories exist before attempting any build or
+      # deploy. If this pipeline runs before `terraform apply -target` has
+      # created ECR, all jobs skip gracefully with a clear warning instead
+      # of failing with confusing ECR/ECS errors. This means it is safe to
+      # push code to master at any time regardless of infrastructure state.
       - name: Configure AWS credentials (bootstrap check)
         id: aws-creds
         continue-on-error: true
@@ -52,12 +59,12 @@ jobs:
         id: infra-check
         run: |
           READY="true"
-
+          # If AWS credentials failed (OIDC role doesn't exist yet), skip everything
           if [ "${{ steps.aws-creds.outcome }}" != "success" ]; then
             READY="false"
             echo "::warning::OIDC role not found. Run: terraform apply -target=aws_iam_openid_connect_provider.github -target=aws_iam_role.github_actions -target=aws_iam_role_policy.github_actions -target=aws_ecr_repository.services -target=aws_ecr_lifecycle_policy.cleanup -target=aws_secretsmanager_secret.app_secrets -target=aws_secretsmanager_secret_version.app_secrets"
           else
-
+            # OIDC works — now check ECR repos exist
             aws ecr describe-repositories               --repository-names "inventoryms-prod/auth-service"               --region $AWS_REGION > /dev/null 2>&1 || READY="false"
             if [ "$READY" = "false" ]; then
               echo "::warning::ECR repositories not found. Run the bootstrap terraform apply targets first, then re-run this workflow."
@@ -182,11 +189,26 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/auth-service:${{ github.sha }}" ./auth-service
-          docker push "${ECR_BASE}/auth-service:${{ github.sha }}"
+          # Check if this exact image tag already exists in ECR (e.g. same commit
+          # re-deployed after a terraform apply with no code change). If it does,
+          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
+          # step below will still run and point ECS to this existing image.
+          IMAGE_TAG="${{ github.sha }}"
+          if aws ecr describe-images \
+            --repository-name "inventoryms-prod/auth-service" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --region $AWS_REGION > /dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
+          else
+            docker build -t "${ECR_BASE}/auth-service:$IMAGE_TAG" ./auth-service
+            docker push "${ECR_BASE}/auth-service:$IMAGE_TAG"
+          fi
       - name: Force ECS redeploy
         run: |
-
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
           TASK_DEF_ARN=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER --services inventoryms-prod-auth --region $AWS_REGION \
             --query "services[0].taskDefinition" --output text 2>/dev/null)
@@ -200,7 +222,7 @@ jobs:
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
                'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-                .containerDefinitions[0].image = $img')
+                .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
             --cli-input-json "$NEW_TASK_DEF" \
@@ -249,11 +271,26 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/inventory-service:${{ github.sha }}" ./inventory-service
-          docker push "${ECR_BASE}/inventory-service:${{ github.sha }}"
+          # Check if this exact image tag already exists in ECR (e.g. same commit
+          # re-deployed after a terraform apply with no code change). If it does,
+          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
+          # step below will still run and point ECS to this existing image.
+          IMAGE_TAG="${{ github.sha }}"
+          if aws ecr describe-images \
+            --repository-name "inventoryms-prod/inventory-service" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --region $AWS_REGION > /dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
+          else
+            docker build -t "${ECR_BASE}/inventory-service:$IMAGE_TAG" ./inventory-service
+            docker push "${ECR_BASE}/inventory-service:$IMAGE_TAG"
+          fi
       - name: Force ECS redeploy
         run: |
-
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
           TASK_DEF_ARN=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER --services inventoryms-prod-inventory --region $AWS_REGION \
             --query "services[0].taskDefinition" --output text 2>/dev/null)
@@ -267,7 +304,7 @@ jobs:
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
                'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-                .containerDefinitions[0].image = $img')
+                .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
             --cli-input-json "$NEW_TASK_DEF" \
@@ -316,11 +353,26 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/notification-service:${{ github.sha }}" ./notification-service
-          docker push "${ECR_BASE}/notification-service:${{ github.sha }}"
+          # Check if this exact image tag already exists in ECR (e.g. same commit
+          # re-deployed after a terraform apply with no code change). If it does,
+          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
+          # step below will still run and point ECS to this existing image.
+          IMAGE_TAG="${{ github.sha }}"
+          if aws ecr describe-images \
+            --repository-name "inventoryms-prod/notification-service" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --region $AWS_REGION > /dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
+          else
+            docker build -t "${ECR_BASE}/notification-service:$IMAGE_TAG" ./notification-service
+            docker push "${ECR_BASE}/notification-service:$IMAGE_TAG"
+          fi
       - name: Force ECS redeploy
         run: |
-
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
           TASK_DEF_ARN=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER --services inventoryms-prod-notification --region $AWS_REGION \
             --query "services[0].taskDefinition" --output text 2>/dev/null)
@@ -334,7 +386,7 @@ jobs:
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
                'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-                .containerDefinitions[0].image = $img')
+                .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
             --cli-input-json "$NEW_TASK_DEF" \
@@ -383,11 +435,26 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/reporting-service:${{ github.sha }}" ./reporting-service
-          docker push "${ECR_BASE}/reporting-service:${{ github.sha }}"
+          # Check if this exact image tag already exists in ECR (e.g. same commit
+          # re-deployed after a terraform apply with no code change). If it does,
+          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
+          # step below will still run and point ECS to this existing image.
+          IMAGE_TAG="${{ github.sha }}"
+          if aws ecr describe-images \
+            --repository-name "inventoryms-prod/reporting-service" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --region $AWS_REGION > /dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
+          else
+            docker build -t "${ECR_BASE}/reporting-service:$IMAGE_TAG" ./reporting-service
+            docker push "${ECR_BASE}/reporting-service:$IMAGE_TAG"
+          fi
       - name: Force ECS redeploy
         run: |
-
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
           TASK_DEF_ARN=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER --services inventoryms-prod-reporting --region $AWS_REGION \
             --query "services[0].taskDefinition" --output text 2>/dev/null)
@@ -401,7 +468,7 @@ jobs:
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
                'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-                .containerDefinitions[0].image = $img')
+                .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
             --cli-input-json "$NEW_TASK_DEF" \
@@ -450,11 +517,26 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
       - name: Build and push image
         run: |
-          docker build -t "${ECR_BASE}/supplier-service:${{ github.sha }}" ./supplier-service
-          docker push "${ECR_BASE}/supplier-service:${{ github.sha }}"
+          # Check if this exact image tag already exists in ECR (e.g. same commit
+          # re-deployed after a terraform apply with no code change). If it does,
+          # skip the push — IMMUTABLE ECR rejects duplicate tags. The ECS deploy
+          # step below will still run and point ECS to this existing image.
+          IMAGE_TAG="${{ github.sha }}"
+          if aws ecr describe-images \
+            --repository-name "inventoryms-prod/supplier-service" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --region $AWS_REGION > /dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
+          else
+            docker build -t "${ECR_BASE}/supplier-service:$IMAGE_TAG" ./supplier-service
+            docker push "${ECR_BASE}/supplier-service:$IMAGE_TAG"
+          fi
       - name: Force ECS redeploy
         run: |
-
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
           TASK_DEF_ARN=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER --services inventoryms-prod-supplier --region $AWS_REGION \
             --query "services[0].taskDefinition" --output text 2>/dev/null)
@@ -468,7 +550,7 @@ jobs:
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
                'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-                .containerDefinitions[0].image = $img')
+                .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
             --cli-input-json "$NEW_TASK_DEF" \
@@ -481,6 +563,10 @@ jobs:
       - name: Wait for stability
         run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services inventoryms-prod-supplier --region $AWS_REGION || echo "::warning::Service did not stabilise"
 
+# ───────────────────────────────────────────────────────────────────────────
+# FRONTEND — builds all MFEs with production base paths, bundles into one
+# nginx image under /mfe/<name>/ subdirectories
+# ───────────────────────────────────────────────────────────────────────────
   deploy-frontend:
     name: frontend MFEs - ECR - ECS
     needs: detect-changes
@@ -496,6 +582,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
 
+      # Build each MFE — Vite auto-sets NODE_ENV=production during vite build
       - name: Build dashboard-mfe
         working-directory: frontend/dashboard-mfe
         run: npm ci && npm run build
@@ -516,6 +603,8 @@ jobs:
         working-directory: frontend/reporting-mfe
         run: npm ci && npm run build
 
+      # KEY FIX: stage all MFE dist outputs into shell/mfe-dist/ so
+      # the shell Dockerfile can COPY them into nginx at /mfe/<name>/
       - name: Stage MFE dist files for Docker
         run: |
           mkdir -p frontend/shell/mfe-dist/dashboard
@@ -531,6 +620,7 @@ jobs:
           echo "MFE dist files staged:"
           ls frontend/shell/mfe-dist/
 
+      # Build shell — Vite auto-sets NODE_ENV=production, uses /mfe/<name> paths
       - name: Build shell
         working-directory: frontend/shell
         run: npm ci && npm run build
@@ -547,15 +637,27 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | \
             docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
+      # Docker build context is ./frontend/shell which now contains mfe-dist/
       - name: Build and push shell image
         working-directory: frontend/shell
         run: |
-          docker build -t "${ECR_BASE}/frontend:${{ github.sha }}" .
-          docker push "${ECR_BASE}/frontend:${{ github.sha }}"
+          IMAGE_TAG="${{ github.sha }}"
+          if aws ecr describe-images \
+            --repository-name "inventoryms-prod/frontend" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --region $AWS_REGION > /dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists in ECR — skipping push, proceeding to ECS deploy"
+          else
+            docker build -t "${ECR_BASE}/frontend:$IMAGE_TAG" .
+            docker push "${ECR_BASE}/frontend:$IMAGE_TAG"
+          fi
 
       - name: Force ECS redeploy
         run: |
-
+          # Get the current task definition, swap the image to the new SHA tag,
+          # register a new task definition revision, then deploy it.
+          # This is the correct approach for IMMUTABLE ECR repos — the task def
+          # must reference the exact SHA tag, not :latest.
           TASK_DEF_ARN=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER --services inventoryms-prod-frontend --region $AWS_REGION \
             --query "services[0].taskDefinition" --output text 2>/dev/null)
@@ -569,7 +671,7 @@ jobs:
             --query "taskDefinition" --output json | \
             jq --arg img "$NEW_IMAGE" \
                'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy) |
-                .containerDefinitions[0].image = $img')
+                .containerDefinitions[0].image = $img') 
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --region $AWS_REGION \
             --cli-input-json "$NEW_TASK_DEF" \
