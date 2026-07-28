@@ -1,3 +1,24 @@
-node_modules
+# Build output — the CI pipeline copies built MFE dist files
+# into the shell context before docker build, so dist/ is intentionally
+# NOT ignored here. Only intermediate build artifacts are excluded.
 
-dist
+# Node modules — never copy into Docker context
+node_modules/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.iml
+.idea/
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Docs
+*.md
+
+# Local env files
+.env
+.env.*

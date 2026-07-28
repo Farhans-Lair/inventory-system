@@ -1,0 +1,30 @@
+# Build output — never needed in Docker build context
+target/
+
+# IDE and editor files
+*.iml
+.idea/
+.vscode/
+*.classpath
+*.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docs and markdown
+*.md
+*.txt
+
+# Local env files
+.env
+.env.*
+
+# Test reports
+surefire-reports/
+
