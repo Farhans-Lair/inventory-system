@@ -87,10 +87,17 @@ resource "aws_launch_template" "ecs" {
   }
 
   user_data = base64encode(<<-EOF
-
-    echo "ECS_CLUSTER=${aws_ecs_cluster.main.name}" >> /etc/ecs/ecs.config
-    echo "ECS_ENABLE_CONTAINER_METADATA=true"       >> /etc/ecs/ecs.config
-    echo "ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE=true" >> /etc/ecs/ecs.config
+    #!/bin/bash
+    # Write ECS agent configuration — must run before the ECS agent starts.
+    # The cluster name tells the agent which ECS cluster to register with.
+    # Without this file, instances boot but never appear in the ECS cluster
+    # (registeredContainerInstances stays 0) and all tasks fail with
+    # "EMPTY CAPACITY PROVIDER".
+    echo "ECS_CLUSTER=${aws_ecs_cluster.main.name}"              >> /etc/ecs/ecs.config
+    echo "ECS_ENABLE_CONTAINER_METADATA=true"                    >> /etc/ecs/ecs.config
+    echo "ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE=true"        >> /etc/ecs/ecs.config
+    echo "ECS_ENABLE_TASK_IAM_ROLE=true"                         >> /etc/ecs/ecs.config
+    echo "ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST=true"            >> /etc/ecs/ecs.config
   EOF
   )
 
