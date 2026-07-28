@@ -77,7 +77,7 @@ variable "ec2_max_instances" {
   description = "Maximum number of EC2 instances the ASG can scale to"
   # Must be >= ec2_desired_instances (now 6). Leaves room for one extra
   # instance during CPU-driven scale-out before hitting the ceiling.
-  default     = 7
+  default     = 10
 }
 
 variable "ec2_desired_instances" {
