@@ -144,9 +144,11 @@ State is stored **locally** (`terraform.tfstate`). An S3 backend requires the ta
 
 ### Infrastructure sizing rationale
 
-**EC2 (`t3.large`, 6 desired instances):** each instance provides 3 ENIs; with `awsvpc` networking each ECS task consumes one ENI, so the usable task-slot formula is `(instances × 3 ENIs) − instances`. All 5 backend services now run `desired_count=2` (frontend runs `desired_count=1`) for zero-gap rolling deployments, which raised the steady-state task count enough that the EC2 fleet was increased from the original 4 instances to 6 to avoid the ENI-exhaustion "no registered targets" failure mode encountered earlier in the project.
+**EC2 (`t3.large`, min 1 / desired 6 / max 10):** each instance provides 3 ENIs; with `awsvpc` networking each ECS task consumes one ENI, and one ENI is reserved for the host itself, leaving 2 usable task slots per instance. All 5 backend services run `desired_count=2` (frontend runs `desired_count=1`) for zero-gap rolling deployments, giving a steady-state task count of 11 against 12 available slots at 6 instances. The max is set to 10 to leave headroom for CPU-driven scale-out beyond the steady state.
 
 **RDS (`db.t3.small`):** sized one tier above `db.t3.micro` to serve what was previously 4 separate database instances, now consolidated into one shared instance with 4 schemas, plus a read replica dedicated to `reporting-service`.
+
+**ECS task CPU/memory** is set per service rather than applied flatly: `inventory-service` and `reporting-service` (heaviest read volume and CSV/report generation respectively) run at 512 CPU units / 1024 MB, while `auth`, `notification`, `supplier`, and the frontend run at 256 CPU units / 512 MB. These are starting-point allocations pending real traffic data from CloudWatch Container Insights.
 
 ---
 
@@ -157,7 +159,8 @@ State is stored **locally** (`terraform.tfstate`). An S3 backend requires the ta
 - Guards every deploy job behind an `infra-check` step that gracefully skips deployment when the underlying Terraform infrastructure isn't bootstrapped yet, resolving a chicken-and-egg ordering problem between infra and app deploys
 - Detects which services changed per commit using `dorny/paths-filter` — only changed services are rebuilt and redeployed
 - Builds a multi-stage Docker image per service (`maven:3.9-eclipse-temurin-21` → `eclipse-temurin:21-jre-alpine`)
-- Tags each image with the **git commit SHA** (never `:latest`) and pushes to ECR
+- Tags each image with the **git commit SHA** (never `:latest`); Terraform resolves the same SHA independently via a git data source, so an apply always deploys the image matching the current commit with no manually-tracked image tag
+- Checks ECR for an existing image with that SHA tag before building — since ECR repositories are IMMUTABLE, re-running the pipeline for a commit that already has an image skips the build/push step and proceeds straight to the ECS deploy step
 - Fetches the current ECS task definition, swaps in the new image, registers a new task-definition revision, and deploys it — required because ECR IMMUTABLE tags mean `:latest` can never be overwritten and a bare force-new-deployment would redeploy the same image
 - Supports `workflow_dispatch` with a `deploy_all` input to force a full redeploy of every service
 - Supports a `[skip ci]` commit-message convention for controlled deployment sequencing
