@@ -1,4 +1,4 @@
-import { AuthProvider } from './authContext'
+import { AuthProvider } from '../../shared/authContext.jsx'
 import DashboardPageRaw from './DashboardPage'
 
 export default function DashboardPage(props) {

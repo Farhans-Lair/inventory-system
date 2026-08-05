@@ -1,7 +1,7 @@
 package com.inventory.reporting.application;
 import com.inventory.reporting.application.dto.*;
 import com.inventory.reporting.domain.model.MovementView;
-import com.inventory.reporting.infrastructure.storage.ReportStorageService;
+import com.inventory.shared.storage.ReportStorageService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
@@ -52,9 +52,12 @@ public class ReportingService {
             .collect(Collectors.toList());
     }
 
+    private static final int MAX_TREND_DAYS = 365;
+
     @SuppressWarnings("unchecked")
     public List<Map<String,Object>> getMovementTrend(int days) {
-        LocalDateTime since = LocalDateTime.now().minusDays(days);
+        int boundedDays = Math.max(1, Math.min(days, MAX_TREND_DAYS));
+        LocalDateTime since = LocalDateTime.now().minusDays(boundedDays);
         List<Object[]> rows = em.createNativeQuery(
             "SELECT DATE(m.timestamp), m.type, SUM(m.quantity) FROM stock_movements m " +
             "WHERE m.timestamp >= :since GROUP BY DATE(m.timestamp), m.type ORDER BY 1 ASC")

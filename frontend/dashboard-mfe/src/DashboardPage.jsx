@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { inventoryApi, reportingApi } from './client'
+import { inventoryApi, reportingApi } from '../../shared/client.js'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts'
 
 const MOVE_COLOR = { INBOUND: 'var(--ok)', OUTBOUND: 'var(--crit)', TRANSFER: 'var(--warn)' }

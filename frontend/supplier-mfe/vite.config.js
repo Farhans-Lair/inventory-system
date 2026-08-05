@@ -25,6 +25,7 @@ export default defineConfig({
     }),
   ],
   server: {
+    fs: { allow: ['..'] }, // allow serving frontend/shared (authContext, client) from outside this MFE's root
     port: 3004,
     proxy: {
       '/api/auth':            { target: 'http://localhost:8081', changeOrigin: true },

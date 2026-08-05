@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { reportingApi } from './client'
+import { reportingApi } from '../../shared/client.js'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 const card = { background:'#fff', borderRadius:10, padding:'20px 24px', border:'1px solid var(--border)', marginBottom:20 }

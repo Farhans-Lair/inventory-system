@@ -1,8 +1,6 @@
-package com.inventory.reporting.infrastructure.storage;
+package com.inventory.shared.storage;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
@@ -12,7 +10,13 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-@Service
+/**
+ * Uploads generated report files (CSV exports, etc.) to the shared reports
+ * S3 bucket. Each service wires this as a @Bean in its own @Configuration,
+ * supplying its region/bucket via @Value — this class itself stays a plain,
+ * framework-agnostic component so it isn't tied to any one service's
+ * component scan.
+ */
 @Slf4j
 public class ReportStorageService {
 
@@ -22,9 +26,7 @@ public class ReportStorageService {
     private final S3Client s3;
     private final String   bucket;
 
-    public ReportStorageService(
-            @Value("${aws.s3.region:ap-south-1}") String region,
-            @Value("${reports.bucket:inventoryms-reports}") String bucket) {
+    public ReportStorageService(String region, String bucket) {
         this.bucket = bucket;
         this.s3 = S3Client.builder()
                 .region(Region.of(region))

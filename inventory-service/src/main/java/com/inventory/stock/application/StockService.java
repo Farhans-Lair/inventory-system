@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -29,14 +30,16 @@ public class StockService {
     private final StockReservationRepository reservationRepository;
     private final BatchLotRepository         batchLotRepository;
 
+    private static final int LIST_CAP = 2000;
+
     @Value("${notification.service.url:http://notification-service:8083}")
     private String notificationServiceUrl;
 
     @Cacheable("stockLevels")
     public StockSummaryDto getSummary() {
         return StockSummaryDto.builder()
-                .totalProducts(productRepository.findAll().stream().filter(Product::isActive).count())
-                .totalLocations(locationRepository.findAll().stream().filter(Location::isActive).count())
+                .totalProducts(productRepository.countByActive(true))
+                .totalLocations(locationRepository.countByActive(true))
                 .lowStockCount(stockLevelRepository.countLowStock())
                 .outOfStockCount(stockLevelRepository.countOutOfStock())
                 .overstockCount(stockLevelRepository.countOverstock())
@@ -47,7 +50,7 @@ public class StockService {
     }
 
     @Cacheable("stockLevels")
-    public List<StockLevelDto> getAllLevels()                 { return stockLevelRepository.findAll().stream().map(this::toLevelDto).collect(Collectors.toList()); }
+    public List<StockLevelDto> getAllLevels()                 { return stockLevelRepository.findAll(PageRequest.of(0, LIST_CAP)).getContent().stream().map(this::toLevelDto).collect(Collectors.toList()); }
     public List<StockLevelDto> getLevelsByProduct(String id) { return stockLevelRepository.findByProductId(id).stream().map(this::toLevelDto).collect(Collectors.toList()); }
     public List<StockLevelDto> getLevelsByLocation(String id){ return stockLevelRepository.findByLocationId(id).stream().map(this::toLevelDto).collect(Collectors.toList()); }
     public List<StockLevelDto> getLowStock()                 { return stockLevelRepository.findLowStockLevels().stream().map(this::toLevelDto).collect(Collectors.toList()); }

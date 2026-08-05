@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { inventoryApi } from './client'
+import { inventoryApi } from '../../shared/client.js'
 
 const typeColor = t => ({ INBOUND: '#22c55e', OUTBOUND: '#ef4444', TRANSFER: '#f59e0b' }[t] || '#6b7280')
 

@@ -8,8 +8,10 @@ public interface ProductRepository {
     Optional<Product> findById(String id);
     Optional<Product> findBySku(String sku);
     List<Product> findAll();
+    List<Product> findAll(int limit);
     List<Product> findByCategory(String category);
     Product save(Product product);
     boolean existsBySku(String sku);
     void deleteById(String id);
+    long countByActive(boolean active);
 }

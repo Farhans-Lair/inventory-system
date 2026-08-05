@@ -5,7 +5,7 @@ import com.inventory.stock.domain.model.*;
 import com.inventory.stock.domain.repository.*;
 import com.inventory.stock.infrastructure.barcode.BarcodeService;
 import com.inventory.stock.infrastructure.storage.MinioStorageService;
-import com.inventory.stock.infrastructure.storage.ReportStorageService;
+import com.inventory.shared.storage.ReportStorageService;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +30,16 @@ public class ProductService {
     private final ReportStorageService     reportStorageService;
     private final BarcodeService           barcodeService;
 
+    // Generous cap for "list everything" endpoints — current catalog sizes are
+    // nowhere near this, so no observable change today; it just removes the
+    // unbounded-growth ceiling. CSV export intentionally stays unbounded
+    // (exportToCsv uses productRepository.findAll()) since an export silently
+    // dropping rows would be a real correctness problem, not a memory one.
+    private static final int LIST_CAP = 2000;
+
     @Cacheable("products")
     public List<ProductDto> getAll() {
-        return productRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        return productRepository.findAll(LIST_CAP).stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public ProductDto getById(String id) {
@@ -137,7 +144,13 @@ public class ProductService {
     public byte[] exportToCsv() {
         StringBuilder sb = new StringBuilder();
         sb.append("sku,name,category,unit,description,costPrice,sellingPrice,hasExpiryTracking,active,totalQuantity\n");
-        for (ProductDto p : getAll()) {
+        // Builds rows straight from the Product entities instead of routing through
+        // getAll()/toDto() — the CSV never uses imageUrl, barcodeValue, id, or
+        // createdAt, so this also skips the per-product presigned-URL S3 call that
+        // toDto() does purely for fields this export throws away.
+        for (Product p : productRepository.findAll()) {
+            int totalQuantity = stockLevelRepository.findByProductId(p.getId())
+                    .stream().mapToInt(sl -> sl.getQuantity()).sum();
             sb.append(String.join(",",
                     safe(p.getSku()), safe(p.getName()), safe(p.getCategory()),
                     safe(p.getUnit()), safe(p.getDescription()),
@@ -145,7 +158,7 @@ public class ProductService {
                     p.getSellingPrice() != null ? p.getSellingPrice().toString() : "",
                     String.valueOf(p.isHasExpiryTracking()),
                     String.valueOf(p.isActive()),
-                    String.valueOf(p.getTotalQuantity())
+                    String.valueOf(totalQuantity)
             )).append("\n");
         }
         byte[] csv = sb.toString().getBytes(StandardCharsets.UTF_8);

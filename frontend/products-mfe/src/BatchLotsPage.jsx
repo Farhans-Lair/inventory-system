@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { inventoryApi } from './client'
+import { inventoryApi } from '../../shared/client.js'
 
 const card = { background:'#fff', borderRadius:10, padding:'20px 24px', border:'1px solid var(--border)', marginBottom:20 }
 const btn = (c='#4f46e5') => ({ padding:'6px 14px', background:c, color:'#fff', border:'none', borderRadius:6, fontSize:13, cursor:'pointer' })

@@ -4,6 +4,7 @@ import com.inventory.stock.application.dto.UomConversionDto;
 import com.inventory.stock.domain.model.UomConversion;
 import com.inventory.stock.domain.repository.UomConversionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,10 +14,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UomService {
 
+    private static final int LIST_CAP = 2000;
+
     private final UomConversionRepository repo;
 
     public List<UomConversionDto> getAll() {
-        return repo.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        return repo.findAll(PageRequest.of(0, LIST_CAP)).getContent().stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public UomConversionDto create(UomConversionDto dto) {

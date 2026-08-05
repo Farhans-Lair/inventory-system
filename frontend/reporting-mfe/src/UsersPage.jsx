@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { authApi } from './client'
+import { authApi } from '../../shared/client.js'
 
 const EMPTY = { email: '', fullName: '', password: '', role: 'WAREHOUSE_MANAGER' }
 

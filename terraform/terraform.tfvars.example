@@ -1,58 +1,43 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# terraform.tfvars.example — copy this to terraform.tfvars and fill in values
-# terraform.tfvars is in .gitignore — NEVER commit it (it contains secrets)
-# This example file is safe to commit — no real secrets here.
-# ═══════════════════════════════════════════════════════════════════════════
+# Copy to terraform.tfvars and fill in values. terraform.tfvars is gitignored;
+# this example file has no real secrets and is safe to commit.
 
-# ── AWS ────────────────────────────────────────────────────────────────────
+# AWS
 aws_region  = "ap-south-1"
 project     = "inventoryms"
 environment = "prod"
 
-# ── Networking ─────────────────────────────────────────────────────────────
+# Networking
 vpc_cidr             = "10.0.0.0/16"
 public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
 
-# ── Database ───────────────────────────────────────────────────────────────
+# Database
 db_username       = "inventoryadmin"
-db_password       = ""            # set a strong password — no @ / " or spaces
-db_instance_class = "db.t3.small" # single shared instance for all 4 schemas —
-                                  # do NOT use db.t3.micro, it cannot handle
-                                  # the combined connection load of 5 services
+db_password       = ""            # no @ / " or spaces
+db_instance_class = "db.t3.small" # shared instance for all 4 schemas
 
-# ── JWT secrets ─────────────────────────────────────────────────────────────
-# THREE separate secrets required — one per token type.
-# Each must be at least 32 characters (256 bits) — JJWT HS256 hard requirement.
-# Terraform will reject values shorter than 32 chars at plan time.
-# Generate each with PowerShell:
+# JWT secrets — three required, each min 32 chars (JJWT HS256):
 #   [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
-# Run three times to get three different values.
-jwt_session_secret = ""   # min 32 chars — for OTP session tokens (auth-service only)
-jwt_access_secret  = ""   # min 32 chars — for API access tokens (all services validate)
-jwt_refresh_secret = ""   # min 32 chars — for refresh tokens (auth-service only)
+jwt_session_secret = ""   # OTP session tokens (auth-service only)
+jwt_access_secret  = ""   # API access tokens (all services validate)
+jwt_refresh_secret = ""   # refresh tokens (auth-service only)
 
-# ── Email ──────────────────────────────────────────────────────────────────
-mail_username    = ""   # Gmail address used as the SMTP sender
-mail_password    = ""   # Gmail App Password (not your login password)
-                        # Generate at: myaccount.google.com/apppasswords
+# Email
+mail_username    = ""   # Gmail address used as SMTP sender
+mail_password    = ""   # Gmail App Password (myaccount.google.com/apppasswords)
 alert_recipients = ""   # comma-separated emails for stock alert notifications
 
-# ── S3 bucket names (must be globally unique across all of AWS) ─────────────
+# S3 bucket names (must be globally unique across all of AWS)
 image_bucket_name  = "inventoryms-product-images-prod"
 report_bucket_name = "inventoryms-reports-prod"
 
-# ── EC2 / ECS Auto Scaling ─────────────────────────────────────────────────
-# t3.large = 3 ENIs per instance, 1 used by the instance itself = 2 task slots.
-# Steady-state task count = 11 (auth×2 + inventory×2 + notification×2 +
-# reporting×2 + supplier×2 + frontend×1). 6 instances × 2 slots = 12 ≥ 11 ✓
-# Do NOT set ec2_desired_instances below 6 — services will fail to place.
+# EC2 / ECS Auto Scaling
+# t3.large = 2 usable task slots/instance. Steady-state task count = 11.
+# Do not set ec2_desired_instances below 6 — services will fail to place.
 ec2_instance_type     = "t3.large"
 ec2_min_instances     = 1
 ec2_max_instances     = 10
 ec2_desired_instances = 6
 
-# ── CloudWatch alarm notifications ─────────────────────────────────────────
-alarm_email = ""   # email address for CloudWatch alarm notifications
-                   # you will receive a subscription confirmation email from
-                   # AWS SNS — click the link to activate it
+# CloudWatch alarm notifications
+alarm_email = ""   # confirm the SNS subscription email AWS sends you

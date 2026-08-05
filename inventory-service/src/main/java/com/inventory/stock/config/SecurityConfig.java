@@ -1,5 +1,7 @@
 package com.inventory.stock.config;
 
+import com.inventory.shared.security.CorsDefaults;
+import com.inventory.shared.security.Roles;
 import com.inventory.stock.infrastructure.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -14,10 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -44,12 +43,12 @@ public class SecurityConfig {
                     "/actuator/health/liveness",
                     "/actuator/info"
                 ).permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/products/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/locations/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/stock/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/batch-lots/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/cycle-counts/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .anyRequest().hasAnyRole("ADMIN","WAREHOUSE_MANAGER")
+                .requestMatchers(HttpMethod.GET, "/api/products/**").hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER, Roles.STAKEHOLDER)
+                .requestMatchers(HttpMethod.GET, "/api/locations/**").hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER, Roles.STAKEHOLDER)
+                .requestMatchers(HttpMethod.GET, "/api/stock/**").hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER, Roles.STAKEHOLDER)
+                .requestMatchers(HttpMethod.GET, "/api/batch-lots/**").hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER, Roles.STAKEHOLDER)
+                .requestMatchers(HttpMethod.GET, "/api/cycle-counts/**").hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER, Roles.STAKEHOLDER)
+                .anyRequest().hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER)
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -57,13 +56,6 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("*"));
-        cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*"));
-        cfg.setAllowCredentials(true);
-        var source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", cfg);
-        return source;
+        return CorsDefaults.defaultCorsConfigurationSource();
     }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { inventoryApi } from './client'
+import { inventoryApi } from '../../shared/client.js'
 
 const inp = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, width: '100%', boxSizing: 'border-box' }
 const btn = (bg = 'var(--primary)') => ({ padding: '7px 16px', background: bg, color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600 })

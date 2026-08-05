@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { inventoryApi } from './client'
-import { useAuth } from './authContext'
+import { inventoryApi } from '../../shared/client.js'
+import { useAuth } from '../../shared/authContext.jsx'
 
 const REASON_CODES = ['', 'SOLD', 'RETURNED', 'DAMAGED', 'EXPIRED', 'ADJUSTMENT', 'SAMPLE', 'WRITE_OFF']
 const MOVE_EMPTY  = { productId: '', type: 'INBOUND', quantity: 1, fromLocationId: '', toLocationId: '', reason: '', reasonCode: '' }

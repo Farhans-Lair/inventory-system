@@ -1,4 +1,4 @@
-import { AuthProvider } from './authContext'
+import { AuthProvider } from '../../shared/authContext.jsx'
 import MovementsPageRaw from './MovementsPage'
 
 export default function MovementsPage(props) {

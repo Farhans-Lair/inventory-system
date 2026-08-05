@@ -15,8 +15,10 @@ public class LocationService {
 
     private final LocationRepository locationRepository;
 
+    private static final int LIST_CAP = 2000;
+
     public List<LocationDto> getAll() {
-        return locationRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        return locationRepository.findAll(LIST_CAP).stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public LocationDto getById(String id) {

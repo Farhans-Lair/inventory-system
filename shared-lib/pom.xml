@@ -19,6 +19,11 @@
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId></dependency>
     <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><version>${lombok.version}</version><optional>true</optional></dependency>
     <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId><version>2.0.13</version></dependency>
+    <!-- provided: every consuming service already brings these via its own Spring Boot starters -->
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><scope>provided</scope></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId><scope>provided</scope></dependency>
+    <dependency><groupId>com.amazonaws</groupId><artifactId>aws-xray-recorder-sdk-core</artifactId><version>2.14.0</version><scope>provided</scope></dependency>
+    <dependency><groupId>software.amazon.awssdk</groupId><artifactId>s3</artifactId><version>2.25.60</version><scope>provided</scope></dependency>
   </dependencies>
   <build>
     <plugins>

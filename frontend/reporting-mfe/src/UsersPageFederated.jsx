@@ -1,4 +1,4 @@
-import { AuthProvider } from './authContext'
+import { AuthProvider } from '../../shared/authContext.jsx'
 import UsersPageRaw from './UsersPage'
 
 export default function UsersPage(props) {

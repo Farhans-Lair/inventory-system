@@ -1,5 +1,7 @@
 package com.inventory.supplier.config;
 
+import com.inventory.shared.security.CorsDefaults;
+import com.inventory.shared.security.Roles;
 import com.inventory.supplier.infrastructure.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -14,10 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -45,10 +44,10 @@ public class SecurityConfig {
                     "/actuator/info"
                 ).permitAll()
 
-                .requestMatchers(HttpMethod.GET, "/api/suppliers/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
-                .requestMatchers(HttpMethod.GET, "/api/purchase-orders/**").hasAnyRole("ADMIN","WAREHOUSE_MANAGER","STAKEHOLDER")
+                .requestMatchers(HttpMethod.GET, "/api/suppliers/**").hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER, Roles.STAKEHOLDER)
+                .requestMatchers(HttpMethod.GET, "/api/purchase-orders/**").hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER, Roles.STAKEHOLDER)
 
-                .anyRequest().hasAnyRole("ADMIN","WAREHOUSE_MANAGER")
+                .anyRequest().hasAnyRole(Roles.ADMIN, Roles.WAREHOUSE_MANAGER)
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -56,13 +55,6 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("*"));
-        cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*"));
-        cfg.setAllowCredentials(true);
-        var source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", cfg);
-        return source;
+        return CorsDefaults.defaultCorsConfigurationSource();
     }
 }

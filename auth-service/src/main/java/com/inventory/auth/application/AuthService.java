@@ -50,6 +50,7 @@ public class AuthService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int MAX_ADMIN_COUNT = 2;
+    private static final int LIST_CAP = 2000;
     private static final String PURPOSE_CLAIM = "purpose";
     private static final String JTI_CLAIM     = "jti";
 
@@ -195,7 +196,7 @@ public class AuthService {
     }
 
     public List<UserResponse> getAllUsers() {
-        return userRepository.findAll().stream().map(this::toResponse).collect(Collectors.toList());
+        return userRepository.findAll(LIST_CAP).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     public void toggleActive(String id) {

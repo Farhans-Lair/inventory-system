@@ -2,6 +2,7 @@ package com.inventory.stock.infrastructure.persistence;
 
 import com.inventory.stock.domain.model.Location;
 import com.inventory.stock.domain.repository.LocationRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -10,4 +11,8 @@ import java.util.List;
 public interface JpaLocationRepository extends JpaRepository<Location, String>, LocationRepository {
     boolean existsByName(String name);
     List<Location> findByZone(String zone);
+
+    default List<Location> findAll(int limit) {
+        return findAll(PageRequest.of(0, limit)).getContent();
+    }
 }

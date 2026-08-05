@@ -5,6 +5,7 @@ import com.inventory.supplier.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import java.util.stream.Collectors;
 
 @Service @RequiredArgsConstructor @Slf4j
 public class SupplierService {
+    private static final int LIST_CAP = 2000;
+
     private final SupplierRepository     supplierRepo;
     private final PurchaseOrderRepository poRepo;
     private final GrnRepository          grnRepo;
@@ -26,7 +29,7 @@ public class SupplierService {
     private String inventoryServiceUrl;
 
     public List<SupplierDto> getAllSuppliers() {
-        return supplierRepo.findAll().stream().map(this::toSupplierDto).collect(Collectors.toList());
+        return supplierRepo.findAll(PageRequest.of(0, LIST_CAP)).getContent().stream().map(this::toSupplierDto).collect(Collectors.toList());
     }
     public SupplierDto createSupplier(SupplierDto dto) {
         Supplier s = Supplier.builder().name(dto.getName()).contactPerson(dto.getContactPerson())
@@ -70,7 +73,7 @@ public class SupplierService {
     }
 
     public List<PurchaseOrderDto> getAllPos() {
-        return poRepo.findAll().stream().map(this::toPoDto).collect(Collectors.toList());
+        return poRepo.findAll(PageRequest.of(0, LIST_CAP)).getContent().stream().map(this::toPoDto).collect(Collectors.toList());
     }
     public List<PurchaseOrderDto> getPosByStatus(PurchaseOrder.PoStatus status) {
         return poRepo.findByStatus(status).stream().map(this::toPoDto).collect(Collectors.toList());

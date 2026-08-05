@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { inventoryApi } from './client'
-import { useAuth } from './authContext'
+import { inventoryApi } from '../../shared/client.js'
+import { useAuth } from '../../shared/authContext.jsx'
 
 const EMPTY = {
   sku: '', name: '', description: '', category: '', unit: 'pcs',

@@ -11,6 +11,7 @@ public interface UserRepository {
     User save(User user);
     boolean existsByEmail(String email);
     List<User> findAll();
+    List<User> findAll(int limit);
     void deleteById(String id);
     long countByRole(Role role);
 }
