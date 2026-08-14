@@ -7,21 +7,12 @@ resource "aws_wafv2_web_acl" "main" {
     allow {}
   }
 
-  # WAF only inspects the first N KB of a request body (8 KB by default) and,
-  # for the AWS Managed Common Rule Set, blocks any request whose body is
-  # larger than what it inspected (SizeRestrictions_BODY). Product image
-  # uploads are routinely well over 8 KB, so this was silently 403-ing every
-  # image upload before it ever reached inventory-service. Raise the
-  # inspection limit to the maximum (64 KB) so small/medium images are still
-  # fully scanned by the rest of the CRS; SizeRestrictions_BODY itself is
-  # overridden to Count below since even 64 KB is smaller than most photos.
-  association_config {
-    request_body {
-      alb {
-        default_size_inspection_limit = "KB_64"
-      }
-    }
-  }
+  # NOTE: AWS WAF's request-body inspection limit is configurable via
+  # association_config only for CloudFront/API Gateway/Cognito/App
+  # Runner/Verified Access. For an Application Load Balancer (our case)
+  # it is fixed at 8 KB and cannot be raised — so instead of trying to
+  # inspect the whole body, the fix below stops the CRS from blocking
+  # requests just for exceeding that fixed 8 KB inspection limit.
 
   rule {
     name     = "RateLimitAuthEndpoints"
