@@ -50,7 +50,18 @@ export default function ProductsPage() {
 
   const uploadImage = async (productId, file) => {
     try { await inventoryApi.uploadProductImage(productId, file); load() }
-    catch (err) { alert(err.response?.data?.message || 'Upload failed') }
+    catch (err) {
+      // err.response.data.message only exists when the request actually
+      // reached inventory-service and it returned our JSON error shape.
+      // If a proxy/WAF/gateway blocks the request first, err.response may
+      // still exist (e.g. a 403) but without that JSON body — surface the
+      // HTTP status in that case instead of a silent generic message.
+      const backendMessage = err.response?.data?.message
+      const status = err.response?.status
+      if (backendMessage) alert(backendMessage)
+      else if (status) alert(`Upload failed (HTTP ${status}). This may be blocked by a proxy/WAF rather than the app itself.`)
+      else alert('Upload failed: no response from server. Check your network connection.')
+    }
   }
 
   const showBarcode = async (productId, type) => {

@@ -7,6 +7,22 @@ resource "aws_wafv2_web_acl" "main" {
     allow {}
   }
 
+  # WAF only inspects the first N KB of a request body (8 KB by default) and,
+  # for the AWS Managed Common Rule Set, blocks any request whose body is
+  # larger than what it inspected (SizeRestrictions_BODY). Product image
+  # uploads are routinely well over 8 KB, so this was silently 403-ing every
+  # image upload before it ever reached inventory-service. Raise the
+  # inspection limit to the maximum (64 KB) so small/medium images are still
+  # fully scanned by the rest of the CRS; SizeRestrictions_BODY itself is
+  # overridden to Count below since even 64 KB is smaller than most photos.
+  association_config {
+    request_body {
+      alb {
+        default_size_inspection_limit = "KB_64"
+      }
+    }
+  }
+
   rule {
     name     = "RateLimitAuthEndpoints"
     priority = 1
@@ -55,6 +71,18 @@ resource "aws_wafv2_web_acl" "main" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
+
+        # Don't block legitimate large request bodies (product image
+        # uploads, CSV imports) just because they exceed the WAF body
+        # inspection limit — log/count instead of blocking. The rest of
+        # the Common Rule Set (XSS, LFI, etc. checks) still applies and
+        # still blocks as normal.
+        rule_action_override {
+          name = "SizeRestrictions_BODY"
+          action_to_use {
+            count {}
+          }
+        }
       }
     }
 
