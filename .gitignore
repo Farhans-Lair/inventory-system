@@ -28,5 +28,4 @@ terraform/*.tfstate.backup
 
 Execution_Path.txt
 
-InventoryMS_Development_Lifecycle.docx
-InventoryMS_Technical_Reference.docx
+InventoryMS-System-Design-Specification.docx

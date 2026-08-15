@@ -134,7 +134,7 @@ Infrastructure is provisioned with Terraform (`terraform/` directory) and applic
 - **ECR** — 6 repositories with **IMMUTABLE** image tags; each CI deploy pushes a new git-SHA-tagged image, and re-pushing an existing tag is rejected by design
 - **S3** — product images bucket (versioned, 30-day noncurrent expiry), compliance reports bucket (versioned, no expiry), and VPC flow-logs bucket (90-day expiry, Parquet format)
 - **SSM Parameter Store** — 5 individual SecureString parameters (`DB_PASS`, `JWT_SESSION_SECRET`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `MAIL_PASSWORD`), each encrypted with the AWS-managed `alias/aws/ssm` KMS key and referenced by ECS task definitions via `secrets`/`valueFrom` — no plaintext secrets in task definitions or in the repository
-- **CloudWatch alarms** — ALB 5xx/4xx rate, ALB P95 latency, RDS CPU/connections/free storage, per-service ECS task-count alarms (all 5 backend services), WAF blocked-request rate — all routing to an SNS topic
+- **CloudWatch alarms** — ALB 5xx/4xx rate, ALB P95 latency, RDS CPU/connections/free storage, per-service ECS task-count alarms (`auth`, `notification`, `reporting`, `supplier`), WAF blocked-request rate — all routing to an SNS topic. `inventory-service` and `frontend` currently have no dedicated task-count alarm; this is tracked in [Known gaps](#13-known-gaps).
 - **VPC Flow Logs** — all traffic (ACCEPT + REJECT) to S3 in Parquet format, 90-day retention
 - **AWS X-Ray** — distributed tracing across all 5 backend services via a non-blocking servlet filter (tracing failures never affect request handling)
 
@@ -227,6 +227,7 @@ In production, all secret values are stored in **SSM Parameter Store** and injec
 
 Current limitations, tracked for future iterations:
 
+- CloudWatch per-service ECS task-count alarms cover `auth`, `notification`, `reporting`, and `supplier` only — `inventory-service` (the highest-traffic backend service) and `frontend` have no dedicated running-task-count alarm yet.
 - `shared-lib` currently exposes only `JwtUtil`/`JwtTokenType` — the earlier `ApiResponse` and shared exception classes were identified as dead code and removed; each service still owns its own exception-handling implementation, which is an acceptable and intentional scope for the shared module today.
 - Terraform state remains local rather than S3-backed; the S3 backend configuration exists commented-out in `main.tf` for future migration.
 - HTTPS/custom domain support is implemented in Terraform but inactive by default (gated on `domain_name`) since registering a domain has an ongoing cost outside the scope of a free-tier portfolio budget.
