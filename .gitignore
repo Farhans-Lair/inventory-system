@@ -26,6 +26,3 @@ terraform/tfplan
 terraform/*.tfstate
 terraform/*.tfstate.backup
 
-Execution_Path.txt
-
-InventoryMS-System-Design-Specification.docx

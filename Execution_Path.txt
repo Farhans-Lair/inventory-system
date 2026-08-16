@@ -1,0 +1,44 @@
+First time setup (fresh AWS account / new project)
+
+1. Write all code and commit with [skip ci] — pipeline does not trigger
+
+bash
+git commit -m "initial project setup [skip ci]"
+git push origin master
+
+2. Run bootstrap Terraform apply — creates only OIDC + ECR + SSM Parameters
+
+
+terraform apply -target="aws_iam_openid_connect_provider.github" -target="aws_iam_role.github_actions" -target="aws_iam_role_policy.github_actions" -target="aws_ecr_repository.services" -target="aws_ecr_lifecycle_policy.cleanup" -target="aws_ssm_parameter.db_pass" -target="aws_ssm_parameter.jwt_session_secret" -target="aws_ssm_parameter.jwt_access_secret" -target="aws_ssm_parameter.jwt_refresh_secret" -target="aws_ssm_parameter.mail_password"
+
+3. Trigger pipeline manually — GitHub → Actions → deploy.yml → Run workflow → deploy_all = true
+
+All 6 images get pushed to ECR. ECS steps skip with warnings — expected, ECS doesn't exist yet.
+
+4. Run full Terraform apply — creates VPC, ALB, WAF, ECS, RDS, S3, CloudWatch, everything
+
+terraform apply
+
+ECS tasks start, pull images from ECR on first attempt, containers run successfully.
+
+Every deployment after that (code change)
+
+5. Make code changes
+
+6. Commit and push normally — pipeline triggers automatically
+
+bash
+git commit -m "your change message"
+git push origin master
+
+Pipeline detects changed services, builds only those, pushes new SHA-tagged image to ECR, registers new ECS task definition revision, deploys it.
+
+If you want to push code without deploying
+
+7. Commit with [skip ci]
+
+bash
+git commit -m "work in progress [skip ci]"
+git push origin master
+
+Pipeline does not trigger — code is in the repo, nothing runs on AWS.
